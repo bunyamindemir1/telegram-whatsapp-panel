@@ -21,7 +21,7 @@ make locales
 make preflight
 ```
 
-Update `docs/CHANGELOG.md` under `[Unreleased]` for user-facing changes.
+Update `CHANGELOG.md` in this directory under `[Unreleased]` for user-facing changes.
 
 ## Code guidelines
 

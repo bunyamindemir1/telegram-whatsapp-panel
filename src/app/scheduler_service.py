@@ -9,10 +9,35 @@ from app.database import async_session
 from app.models import JobStatus, RepeatType, ScheduledMessage
 from app.messaging import send_platform_message
 from app.random_window import compute_next_random_daily
+from app.template_engine import build_template_context, render_template
 from app.utils.datetime_utils import ensure_future, to_utc_naive, utc_now
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 _job_locks: set[int] = set()
+
+
+def _job_webhook_payload(job: ScheduledMessage, **extra: object) -> dict:
+    return {
+        "job_id": job.id,
+        "platform": job.platform,
+        "account_id": job.account_id,
+        "chat_id": job.chat_id,
+        "chat_name": job.chat_name,
+        "chat_type": job.chat_type,
+        "message_text": job.message_text,
+        "status": job.status,
+        "repeat_type": job.repeat_type,
+        "send_count": job.send_count or 0,
+        "scheduled_at": job.scheduled_at.isoformat() if job.scheduled_at else None,
+        "next_run_at": job.next_run_at.isoformat() if job.next_run_at else None,
+        **extra,
+    }
+
+
+async def _dispatch_scheduled_webhook(event: str, job: ScheduledMessage, **extra: object) -> None:
+    from app.webhook_service import dispatch_webhook
+
+    await dispatch_webhook(event, _job_webhook_payload(job, **extra))
 
 
 def compute_next_run(job: ScheduledMessage, after: Optional[datetime] = None) -> Optional[datetime]:
@@ -90,6 +115,12 @@ async def _execute_job(job_id: int) -> None:
                 return
 
             try:
+                ctx = build_template_context(
+                    chat_name=job.chat_name or job.chat_id,
+                    chat_id=job.chat_id,
+                    platform=job.platform,
+                )
+                rendered = render_template(job.message_text, ctx)
                 result = await send_platform_message(
                     job.platform,
                     job.chat_id,
@@ -105,6 +136,12 @@ async def _execute_job(job_id: int) -> None:
                     job.error_message = "[TEST] Simüle edildi — mesaj gönderilmedi"
                 else:
                     job.error_message = None
+                    await _dispatch_scheduled_webhook(
+                        "scheduled.sent",
+                        job,
+                        rendered_text=rendered,
+                        dry_run=False,
+                    )
                 job.send_count = (job.send_count or 0) + 1
 
                 next_run = compute_next_run(job, now)
@@ -132,6 +169,11 @@ async def _execute_job(job_id: int) -> None:
                 else:
                     job.is_active = False
                     await session.commit()
+                    await _dispatch_scheduled_webhook(
+                        "scheduled.failed",
+                        job,
+                        error=str(exc),
+                    )
     finally:
         _job_locks.discard(job_id)
 
@@ -190,6 +232,9 @@ async def retry_job(job_id: int) -> None:
 
 
 async def load_pending_jobs() -> None:
+    from app.follow_up_service import register_follow_up_checker
+
+    register_follow_up_checker(scheduler)
     async with async_session() as session:
         result = await session.execute(
             select(ScheduledMessage).where(

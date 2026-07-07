@@ -1,15 +1,43 @@
 from __future__ import annotations
 
+import csv
+import io
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+
+from app.schemas.panel import (
+    AuthCodeRequest,
+    AuthPasswordRequest,
+    AuthStartRequest,
+    AutoReplyRequest,
+    AutoReplyUpdateRequest,
+    BackupImportRequest,
+    BroadcastRequest,
+    ConversationLabelRequest,
+    ConversationMetaRequest,
+    CreateAccountRequest,
+    FollowUpRequest,
+    InternalEventRequest,
+    PanelLoginRequest,
+    PanelSetupRequest,
+    ScheduleRequest,
+    ScheduleUpdateRequest,
+    SendMessageRequest,
+    StarMessageRequest,
+    TelegramCredentialsRequest,
+    TemplateRequest,
+    TemplateUpdateRequest,
+    UpdateAccountRequest,
+    WhatsAppSyncRequest,
+)
 
 from app.bridge_manager import start_whatsapp_bridge, stop_whatsapp_bridge
 from app import error_codes as E
@@ -48,16 +76,24 @@ from app.credentials_store import (
 )
 from app.database import async_session, init_db
 from app.message_store import (
+    count_conversations,
+    count_messages,
+    count_starred_messages,
     count_stored_messages,
     get_messages,
+    list_all_tags,
     list_conversations,
+    list_starred_messages,
+    mark_all_read,
     mark_read,
     save_message,
     save_messages_batch,
     save_messages_bulk,
     search_messages,
+    set_message_starred,
     sync_conversations_from_chats,
     update_conversation_label,
+    update_conversation_meta,
 )
 from app.realtime import realtime_hub
 from app.models import JobStatus, MessageTemplate, Platform, RepeatType, ScheduledMessage
@@ -79,146 +115,6 @@ from app.whatsapp_service import whatsapp_service
 from app.api_v1 import router as api_v1_router
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-
-
-class CreateAccountRequest(BaseModel):
-    platform: str
-    label: str = Field(min_length=1, max_length=120)
-
-
-class UpdateAccountRequest(BaseModel):
-    label: Optional[str] = Field(None, min_length=1, max_length=120)
-
-
-class AuthStartRequest(BaseModel):
-    phone: Optional[str] = None
-    api_id: Optional[int] = None
-    api_hash: Optional[str] = None
-
-
-class SendMessageRequest(BaseModel):
-    platform: str
-    chat_id: str
-    message: str = Field(min_length=1, max_length=4096)
-    chat_name: str = ""
-    chat_type: str = "unknown"
-
-
-class AuthCodeRequest(BaseModel):
-    code: str
-
-
-class AuthPasswordRequest(BaseModel):
-    password: str
-
-
-class ScheduleRequest(BaseModel):
-    platform: str = Platform.TELEGRAM.value
-    account_id: Optional[int] = None
-    chat_id: str
-    chat_name: str
-    chat_type: str = "unknown"
-    message_text: str = Field(min_length=1, max_length=4096)
-    scheduled_at: Optional[datetime] = None
-    repeat_type: str = RepeatType.NONE.value
-    repeat_interval_minutes: Optional[int] = None
-    window_start_time: Optional[str] = None
-    window_end_time: Optional[str] = None
-
-
-class ScheduleUpdateRequest(BaseModel):
-    message_text: Optional[str] = Field(None, min_length=1, max_length=4096)
-    scheduled_at: Optional[datetime] = None
-    repeat_type: Optional[str] = None
-    repeat_interval_minutes: Optional[int] = None
-    window_start_time: Optional[str] = None
-    window_end_time: Optional[str] = None
-
-
-class TemplateRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=120)
-    message_text: str = Field(min_length=1, max_length=4096)
-
-
-class PanelLoginRequest(BaseModel):
-    username: Optional[str] = None
-    password: str = Field(min_length=1)
-
-
-class PanelSetupRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=8, max_length=128)
-
-
-class ConversationLabelRequest(BaseModel):
-    label: str = Field(min_length=1, max_length=120)
-
-
-class TelegramCredentialsRequest(BaseModel):
-    api_id: int = Field(gt=0)
-    api_hash: str = Field(min_length=16, max_length=64)
-    app_name: str = Field(default="mesaj", max_length=64)
-    short_name: str = Field(default="mesaj", max_length=32)
-    phone: Optional[str] = None
-
-
-class InternalMessageData(BaseModel):
-    chat_id: str
-    message_id: str
-    text: str = ""
-    from_me: bool = False
-    timestamp: Optional[float] = None
-    sender_name: Optional[str] = None
-    chat_name: Optional[str] = None
-    chat_type: str = "private"
-    message_type: Optional[str] = None
-    media_path: Optional[str] = None
-    media_mime: Optional[str] = None
-    media_filename: Optional[str] = None
-    media_size: Optional[int] = None
-    caption: Optional[str] = None
-
-
-class InternalEventRequest(BaseModel):
-    type: str
-    platform: Optional[str] = None
-    account_id: Optional[int] = None
-    status: Optional[str] = None
-    user: Optional[dict] = None
-    data: Optional[InternalMessageData] = None
-
-
-class WhatsAppSyncChat(BaseModel):
-    jid: str
-    name: Optional[str] = None
-    type: str = "private"
-    last_message: Optional[str] = None
-    last_timestamp: Optional[int] = None
-    unread_count: int = 0
-
-
-class WhatsAppSyncMessage(BaseModel):
-    id: str
-    jid: str
-    from_me: bool = False
-    text: str = ""
-    timestamp: int = 0
-    push_name: Optional[str] = None
-    message_type: Optional[str] = None
-    media_path: Optional[str] = None
-    media_mime: Optional[str] = None
-    media_filename: Optional[str] = None
-    media_size: Optional[int] = None
-    caption: Optional[str] = None
-
-
-class WhatsAppSyncRequest(BaseModel):
-    account_id: Optional[int] = None
-    chats: list[WhatsAppSyncChat] = []
-    messages: list[WhatsAppSyncMessage] = []
-    offset: int = 0
-    total_messages: int = 0
-    has_more: bool = False
 
 
 def _check_bridge_auth(request: Request) -> None:
@@ -392,7 +288,7 @@ async def api_i18n_locales():
 @app.get("/api/i18n/{locale_code}")
 async def api_i18n_messages(locale_code: str):
     if locale_code not in SUPPORTED_LOCALES:
-        raise HTTPException(status_code=404, detail="Locale not supported")
+        raise HTTPException(status_code=404, detail=E.LOCALE_NOT_SUPPORTED)
     return {
         "locale": locale_code,
         "meta": locale_meta(locale_code),
@@ -496,6 +392,13 @@ async def get_stats(request: Request):
         "pending": pending or 0,
         "sent": sent or 0,
         "failed": failed or 0,
+        "conversations_total": await count_conversations(),
+        "conversations_telegram": await count_conversations(Platform.TELEGRAM.value),
+        "conversations_whatsapp": await count_conversations(Platform.WHATSAPP.value),
+        "messages_total": await count_messages(),
+        "messages_telegram": await count_messages(Platform.TELEGRAM.value),
+        "messages_whatsapp": await count_messages(Platform.WHATSAPP.value),
+        "starred_messages": await count_starred_messages(),
         "scheduler": sched,
         "timezone": TIMEZONE,
         "telegram_connected": tg_auth.get("connected", False),
@@ -739,12 +642,17 @@ async def api_conversations(
     platform: Optional[str] = Query(None),
     account_id: Optional[int] = Query(None),
     refresh: bool = Query(False),
+    unified: bool = Query(False),
+    tag: Optional[str] = Query(None),
 ):
     await _check_panel_auth(request)
     if platform:
         _validate_platform(platform)
 
-    stored = await list_conversations(platform, account_id=account_id)
+    if unified:
+        return await list_conversations(unified=True, tag=tag)
+
+    stored = await list_conversations(platform, account_id=account_id, tag=tag)
 
     if platform == Platform.WHATSAPP.value:
         aid = await _resolve_whatsapp_account(account_id)
@@ -775,6 +683,18 @@ async def api_conversations(
     return stored
 
 
+@app.get("/api/conversations/tags")
+async def api_conversation_tags(
+    request: Request,
+    platform: Optional[str] = Query(None),
+    account_id: Optional[int] = Query(None),
+):
+    await _check_panel_auth(request)
+    if platform:
+        _validate_platform(platform)
+    return await list_all_tags(platform, account_id)
+
+
 @app.patch("/api/conversations/{platform}/{chat_id}/label")
 async def api_rename_conversation(
     request: Request,
@@ -792,7 +712,41 @@ async def api_rename_conversation(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/messages/{platform}/{chat_id}")
+@app.patch("/api/conversations/{platform}/{chat_id}/meta")
+async def api_conversation_meta(
+    request: Request,
+    platform: str,
+    chat_id: str,
+    body: ConversationMetaRequest,
+    account_id: Optional[int] = Query(None),
+):
+    await _check_panel_auth(request)
+    _validate_platform(platform)
+    aid = await _resolve_platform_account(platform, account_id)
+    return await update_conversation_meta(
+        platform,
+        chat_id,
+        account_id=aid,
+        is_pinned=body.is_pinned,
+        notes=body.notes,
+        tags=body.tags,
+        is_muted=body.is_muted,
+        snooze_hours=body.snooze_hours,
+        clear_snooze=body.clear_snooze,
+    )
+
+
+@app.post("/api/conversations/{platform}/mark-all-read")
+async def api_mark_all_read(
+    request: Request,
+    platform: str,
+    account_id: Optional[int] = Query(None),
+):
+    await _check_panel_auth(request)
+    _validate_platform(platform)
+    aid = await _resolve_platform_account(platform, account_id)
+    cleared = await mark_all_read(platform, account_id=aid)
+    return {"ok": True, "cleared": cleared}
 async def api_get_messages(
     request: Request,
     platform: str,
@@ -949,12 +903,46 @@ async def api_search_messages(
     q: str = Query(min_length=1),
     platform: Optional[str] = None,
     account_id: Optional[int] = Query(None),
+    tag: Optional[str] = Query(None),
     limit: int = Query(50, le=100),
 ):
     await _check_panel_auth(request)
     if platform:
         _validate_platform(platform)
-    return await search_messages(q, platform, limit, account_id=account_id)
+    return await search_messages(q, platform, limit, account_id=account_id, tag=tag)
+
+
+@app.get("/api/messages/starred")
+async def api_starred_messages(
+    request: Request,
+    platform: Optional[str] = Query(None),
+    account_id: Optional[int] = Query(None),
+    limit: int = Query(50, le=100),
+):
+    await _check_panel_auth(request)
+    if platform:
+        _validate_platform(platform)
+    return await list_starred_messages(platform, account_id, limit=limit)
+
+
+@app.patch("/api/messages/{platform}/{chat_id}/{message_id}/star")
+async def api_star_message(
+    request: Request,
+    platform: str,
+    chat_id: str,
+    message_id: str,
+    body: StarMessageRequest,
+    account_id: Optional[int] = Query(None),
+):
+    await _check_panel_auth(request)
+    _validate_platform(platform)
+    aid = await _resolve_platform_account(platform, account_id)
+    ok = await set_message_starred(platform, chat_id, message_id, body.starred, account_id=aid)
+    if not ok:
+        raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+    from app.activity_log import log_activity
+    await log_activity("message.starred", {"platform": platform, "chat_id": chat_id, "message_id": message_id, "starred": body.starred})
+    return {"ok": True, "starred": body.starred}
 
 
 @app.post("/api/messages/send")
@@ -966,33 +954,144 @@ async def api_send_message(
     await _check_panel_auth(request)
     _validate_platform(body.platform)
     try:
-        if body.platform == Platform.TELEGRAM.value:
-            aid = await _resolve_telegram_account(account_id)
-            result = await telegram_service.send_message(
-                body.chat_id, body.message, body.chat_name, body.chat_type, account_id=aid
-            )
-        else:
-            aid = await _resolve_whatsapp_account(account_id)
-            wa_result = await whatsapp_service.send_message(body.chat_id, body.message, account_id=aid)
-            from datetime import datetime as dt
-            saved = await save_message(
-                platform="whatsapp",
-                chat_id=body.chat_id,
-                message_id=wa_result.get("message_id", str(dt.utcnow().timestamp())),
-                text=body.message,
-                from_me=True,
-                timestamp=dt.utcnow(),
-                chat_name=body.chat_name or body.chat_id,
-                chat_type=body.chat_type,
-                account_id=aid,
-            )
-            await realtime_hub.broadcast({"type": "message", "data": saved})
-            result = {"message_id": wa_result.get("message_id"), "saved": saved}
+        aid = await _resolve_platform_account(body.platform, account_id)
+        result = await send_platform_message(
+            body.platform,
+            body.chat_id,
+            body.message,
+            chat_name=body.chat_name,
+            chat_type=body.chat_type,
+            account_id=aid,
+            reply_to_message_id=body.reply_to_message_id,
+        )
         return {"ok": True, **result}
     except OutboundBlockedError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/messages/broadcast")
+async def api_broadcast_messages(
+    request: Request,
+    body: BroadcastRequest,
+    account_id: Optional[int] = Query(None),
+):
+    await _check_panel_auth(request)
+    _validate_platform(body.platform)
+    aid = await _resolve_platform_account(body.platform, account_id)
+    names = body.chat_names or {}
+    results: list[dict] = []
+    errors: list[dict] = []
+    for chat_id in body.chat_ids[:50]:
+        try:
+            r = await send_platform_message(
+                body.platform,
+                chat_id,
+                body.message,
+                chat_name=names.get(chat_id, chat_id),
+                account_id=aid,
+            )
+            results.append({"chat_id": chat_id, "ok": True, **r})
+        except Exception as exc:
+            errors.append({"chat_id": chat_id, "error": str(exc)})
+    return {"ok": not errors, "sent": len(results), "failed": len(errors), "results": results, "errors": errors}
+
+
+@app.post("/api/messages/broadcast/csv")
+async def api_broadcast_csv(
+    request: Request,
+    platform: str = Query(...),
+    account_id: Optional[int] = Query(None),
+    file: UploadFile = File(...),
+    message_col: str = Query("message"),
+    chat_id_col: str = Query("chat_id"),
+    default_message: str = Query(""),
+):
+    await _check_panel_auth(request)
+    _validate_platform(platform)
+    aid = await _resolve_platform_account(platform, account_id)
+    raw = (await file.read()).decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(raw))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail=E.CSV_HEADER_REQUIRED)
+    results: list[dict] = []
+    errors: list[dict] = []
+    count = 0
+    for row in reader:
+        if count >= 50:
+            break
+        chat_id = (row.get(chat_id_col) or row.get("phone") or row.get("id") or "").strip()
+        msg = (row.get(message_col) or default_message or "").strip()
+        if not chat_id or not msg:
+            continue
+        count += 1
+        try:
+            r = await send_platform_message(platform, chat_id, msg, account_id=aid)
+            results.append({"chat_id": chat_id, "ok": True, **r})
+        except Exception as exc:
+            errors.append({"chat_id": chat_id, "error": str(exc)})
+    from app.activity_log import log_activity
+    await log_activity("broadcast.csv", {"platform": platform, "sent": len(results), "failed": len(errors)})
+    return {"ok": not errors, "sent": len(results), "failed": len(errors), "results": results, "errors": errors}
+
+
+@app.get("/api/messages/export/{platform}/{chat_id}")
+async def export_chat_messages(
+    request: Request,
+    platform: str,
+    chat_id: str,
+    fmt: str = Query("json", alias="format", pattern="^(json|csv)$"),
+    limit: int = Query(5000, ge=1, le=10000),
+    account_id: Optional[int] = Query(None),
+):
+    await _check_panel_auth(request)
+    _validate_platform(platform)
+    aid = await _resolve_platform_account(platform, account_id)
+    msgs = await get_messages(platform, chat_id, limit=limit, account_id=aid)
+    rows = list(reversed(msgs))
+    safe_id = chat_id.replace("@", "_").replace("/", "_")[:48]
+
+    if fmt == "json":
+        payload = json.dumps(
+            {
+                "platform": platform,
+                "chat_id": chat_id,
+                "account_id": aid,
+                "count": len(rows),
+                "messages": rows,
+            },
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+        return Response(
+            content=payload,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="chat-{safe_id}.json"',
+            },
+        )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["timestamp", "from_me", "sender", "text", "message_type", "message_id"])
+    for m in rows:
+        writer.writerow([
+            m.get("timestamp") or "",
+            m.get("from_me"),
+            m.get("sender_name") or "",
+            m.get("text") or "",
+            m.get("message_type") or "text",
+            m.get("message_id") or "",
+        ])
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="chat-{safe_id}.csv"',
+        },
+    )
 
 
 @app.get("/api/media/{media_path:path}")
@@ -1041,7 +1140,7 @@ async def internal_event(request: Request, body: InternalEventRequest):
 
     if body.type == "message":
         if not body.data:
-            raise HTTPException(status_code=422, detail="message event requires data")
+            raise HTTPException(status_code=422, detail=E.BRIDGE_EVENT_DATA_REQUIRED)
         data = body.data
         panel_account_id = await resolve_whatsapp_panel_account(body.account_id or "1")
         from datetime import datetime as dt
@@ -1070,6 +1169,16 @@ async def internal_event(request: Request, body: InternalEventRequest):
             "message.received" if not saved.get("from_me") else "message.sent",
             saved,
         )
+        if not saved.get("from_me"):
+            from app.auto_reply_service import try_auto_reply
+            await try_auto_reply(
+                platform="whatsapp",
+                account_id=panel_account_id,
+                chat_id=data.chat_id,
+                text=data.text or "",
+                chat_name=data.chat_name or data.chat_id,
+                chat_type=data.chat_type,
+            )
         await realtime_hub.broadcast({
             "type": "conversation_update",
             "platform": "whatsapp",
@@ -1134,7 +1243,7 @@ async def internal_sync_whatsapp(request: Request, body: WhatsAppSyncRequest):
 @app.post("/api/test/send-naber")
 async def test_send_naber(request: Request):
     if ENV == "production":
-        raise HTTPException(status_code=404, detail="Not found")
+        raise HTTPException(status_code=404, detail=E.NOT_FOUND)
     await _check_panel_auth(request)
     if not TELEGRAM_TEST_PHONE:
         raise HTTPException(status_code=400, detail=E.TEST_PHONE_NOT_SET)
@@ -1296,6 +1405,55 @@ async def list_telegram_chats(request: Request, type: Optional[str] = Query(None
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/api/scheduled/calendar")
+async def scheduled_calendar(
+    request: Request,
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+):
+    await _check_panel_auth(request)
+    year, mon = map(int, month.split("-"))
+    from calendar import monthrange
+    start = datetime(year, mon, 1)
+    end = datetime(year, mon, monthrange(year, mon)[1], 23, 59, 59)
+    async with async_session() as session:
+        result = await session.execute(
+            select(ScheduledMessage).where(
+                ScheduledMessage.scheduled_at >= start,
+                ScheduledMessage.scheduled_at <= end,
+                ScheduledMessage.is_active.is_(True),
+            ).order_by(ScheduledMessage.scheduled_at.asc())
+        )
+        jobs = result.scalars().all()
+    days: dict[str, list] = {}
+    for j in jobs:
+        key = j.scheduled_at.strftime("%Y-%m-%d")
+        days.setdefault(key, []).append({
+            "id": j.id,
+            "platform": j.platform,
+            "chat_name": j.chat_name,
+            "status": j.status,
+            "scheduled_at": j.scheduled_at.isoformat() + "Z",
+            "repeat_type": j.repeat_type,
+        })
+    return {"month": month, "days": days, "total": len(jobs)}
+
+
+@app.get("/api/scheduled/export")
+async def export_scheduled(request: Request):
+    await _check_panel_auth(request)
+    async with async_session() as session:
+        result = await session.execute(
+            select(ScheduledMessage).order_by(ScheduledMessage.scheduled_at.desc())
+        )
+        jobs = result.scalars().all()
+    payload = [_serialize_job(j) for j in jobs]
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="scheduled-export.json"'},
+    )
+
+
 @app.get("/api/scheduled")
 async def list_scheduled(request: Request, status: Optional[str] = Query(None)):
     await _check_panel_auth(request)
@@ -1450,6 +1608,39 @@ async def retry_scheduled(request: Request, job_id: int):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/api/scheduled/{job_id}/duplicate")
+async def duplicate_scheduled(request: Request, job_id: int):
+    await _check_panel_auth(request)
+    async with async_session() as session:
+        src = await session.get(ScheduledMessage, job_id)
+        if not src:
+            raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+        from app.utils.datetime_utils import utc_now
+        from datetime import timedelta
+
+        new_at = utc_now() + timedelta(hours=1)
+        job = ScheduledMessage(
+            account_id=src.account_id,
+            platform=src.platform,
+            chat_id=src.chat_id,
+            chat_name=src.chat_name,
+            chat_type=src.chat_type,
+            message_text=src.message_text,
+            scheduled_at=new_at,
+            next_run_at=new_at,
+            repeat_type=RepeatType.NONE.value,
+            status=JobStatus.PENDING.value,
+            is_active=True,
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        new_id = job.id
+        await schedule_message(job)
+        await session.commit()
+    return {"ok": True, "id": new_id}
+
+
 @app.delete("/api/scheduled/{job_id}")
 async def delete_scheduled(request: Request, job_id: int):
     await _check_panel_auth(request)
@@ -1458,12 +1649,16 @@ async def delete_scheduled(request: Request, job_id: int):
 
 
 @app.get("/api/templates")
-async def list_templates(request: Request):
+async def list_templates(
+    request: Request,
+    category: Optional[str] = Query(None),
+):
     await _check_panel_auth(request)
     async with async_session() as session:
-        result = await session.execute(
-            select(MessageTemplate).order_by(MessageTemplate.created_at.desc())
-        )
+        query = select(MessageTemplate).order_by(MessageTemplate.created_at.desc())
+        if category:
+            query = query.where(MessageTemplate.category == category)
+        result = await session.execute(query)
         templates_list = result.scalars().all()
 
     return [
@@ -1471,21 +1666,50 @@ async def list_templates(request: Request):
             "id": t.id,
             "title": t.title,
             "message_text": t.message_text,
+            "category": getattr(t, "category", None) or "general",
             "created_at": t.created_at.isoformat() + "Z",
+            "updated_at": (t.updated_at.isoformat() + "Z") if getattr(t, "updated_at", None) else None,
         }
         for t in templates_list
     ]
 
 
+@app.get("/api/templates/categories")
+async def template_categories(request: Request):
+    await _check_panel_auth(request)
+    async with async_session() as session:
+        result = await session.execute(select(MessageTemplate.category))
+        cats = sorted({row[0] or "general" for row in result.all()})
+    return cats or ["general"]
+
+
 @app.post("/api/templates")
 async def create_template(request: Request, body: TemplateRequest):
     await _check_panel_auth(request)
-    template = MessageTemplate(title=body.title, message_text=body.message_text)
+    template = MessageTemplate(title=body.title, message_text=body.message_text, category=body.category or "general")
     async with async_session() as session:
         session.add(template)
         await session.commit()
         await session.refresh(template)
     return {"id": template.id}
+
+
+@app.put("/api/templates/{template_id}")
+async def update_template(request: Request, template_id: int, body: TemplateUpdateRequest):
+    await _check_panel_auth(request)
+    async with async_session() as session:
+        template = await session.get(MessageTemplate, template_id)
+        if not template:
+            raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+        if body.title is not None:
+            template.title = body.title
+        if body.message_text is not None:
+            template.message_text = body.message_text
+        if body.category is not None:
+            template.category = body.category[:64] or "general"
+        template.updated_at = datetime.utcnow()
+        await session.commit()
+    return {"ok": True}
 
 
 @app.delete("/api/templates/{template_id}")
@@ -1497,3 +1721,126 @@ async def delete_template(request: Request, template_id: int):
             await session.delete(template)
             await session.commit()
     return {"ok": True}
+
+
+@app.get("/api/auto-replies")
+async def api_list_auto_replies(
+    request: Request,
+    platform: Optional[str] = Query(None),
+):
+    await _check_panel_auth(request)
+    if platform:
+        _validate_platform(platform)
+    from app.auto_reply_service import list_auto_reply_rules
+    return await list_auto_reply_rules(platform)
+
+
+@app.post("/api/auto-replies")
+async def api_create_auto_reply(request: Request, body: AutoReplyRequest):
+    await _check_panel_auth(request)
+    _validate_platform(body.platform)
+    aid = await _resolve_platform_account(body.platform, body.account_id)
+    from app.auto_reply_service import create_auto_reply_rule
+    return await create_auto_reply_rule(
+        platform=body.platform,
+        keyword=body.keyword,
+        response_text=body.response_text,
+        account_id=aid,
+        match_mode=body.match_mode,
+        cooldown_minutes=body.cooldown_minutes,
+    )
+
+
+@app.put("/api/auto-replies/{rule_id}")
+async def api_update_auto_reply(request: Request, rule_id: int, body: AutoReplyUpdateRequest):
+    await _check_panel_auth(request)
+    from app.auto_reply_service import update_auto_reply_rule
+    if not await update_auto_reply_rule(
+        rule_id,
+        keyword=body.keyword,
+        response_text=body.response_text,
+        match_mode=body.match_mode,
+        cooldown_minutes=body.cooldown_minutes,
+        is_active=body.is_active,
+    ):
+        raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+    return {"ok": True}
+
+
+@app.delete("/api/auto-replies/{rule_id}")
+async def api_delete_auto_reply(request: Request, rule_id: int):
+    await _check_panel_auth(request)
+    from app.auto_reply_service import delete_auto_reply_rule
+    if not await delete_auto_reply_rule(rule_id):
+        raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+    return {"ok": True}
+
+
+@app.get("/api/follow-ups")
+async def api_list_follow_ups(
+    request: Request,
+    platform: Optional[str] = Query(None),
+    status: str = Query("pending"),
+):
+    await _check_panel_auth(request)
+    if platform:
+        _validate_platform(platform)
+    from app.follow_up_service import list_follow_ups
+    return await list_follow_ups(platform, status=status)
+
+
+@app.post("/api/follow-ups")
+async def api_create_follow_up(request: Request, body: FollowUpRequest):
+    await _check_panel_auth(request)
+    _validate_platform(body.platform)
+    aid = await _resolve_platform_account(body.platform, body.account_id)
+    from app.follow_up_service import create_follow_up
+    from app.activity_log import log_activity
+    result = await create_follow_up(
+        platform=body.platform,
+        chat_id=body.chat_id,
+        reminder_text=body.reminder_text,
+        wait_hours=body.wait_hours,
+        account_id=aid,
+        chat_name=body.chat_name,
+    )
+    await log_activity("follow_up.created", {"id": result["id"], "platform": body.platform, "chat_id": body.chat_id})
+    return result
+
+
+@app.delete("/api/follow-ups/{follow_up_id}")
+async def api_cancel_follow_up(request: Request, follow_up_id: int):
+    await _check_panel_auth(request)
+    from app.follow_up_service import cancel_follow_up
+    if not await cancel_follow_up(follow_up_id):
+        raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+    return {"ok": True}
+
+
+@app.get("/api/activity")
+async def api_activity_log(request: Request, limit: int = Query(50, le=200)):
+    await _check_panel_auth(request)
+    from app.activity_log import list_activity
+    return await list_activity(limit)
+
+
+@app.get("/api/admin/backup")
+async def api_export_backup(request: Request):
+    await _check_panel_auth(request)
+    from app.backup_service import export_panel_backup
+    data = await export_panel_backup()
+    return Response(
+        content=json.dumps(data, ensure_ascii=False, indent=2, default=str),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="mesaj-panel-backup.json"'},
+    )
+
+
+@app.post("/api/admin/restore")
+async def api_import_backup(request: Request, body: BackupImportRequest):
+    await _check_panel_auth(request)
+    from app.backup_service import import_panel_backup
+    from app.activity_log import log_activity
+    counts = await import_panel_backup(body.data, merge=body.merge)
+    await log_activity("backup.restored", counts)
+    return {"ok": True, "imported": counts}

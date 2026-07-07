@@ -134,13 +134,16 @@
     <div class="card schedule-modal-card">
       <div class="schedule-modal-header">
         <div>
-          <h2><span data-icon="clock" data-icon-size="20"></span> <span data-i18n="schedule.title">Schedule</span></h2>
+          <h2><span data-icon="clock" data-icon-size="20"></span> <span id="schedule-modal-title-text" data-i18n="schedule.title">Schedule</span></h2>
           <p class="muted small" id="schedule-modal-recipient">—</p>
         </div>
         <button class="icon-btn" onclick="closeScheduleModal()" data-i18n-aria="common.close" aria-label="Close"><span data-icon="x"></span></button>
       </div>
 
-      <div class="schedule-message-preview" id="schedule-modal-message">—</div>
+      <div class="schedule-section">
+        <label class="schedule-section-label" data-i18n="schedule.messageLabel">Message</label>
+        <textarea id="schedule-modal-message-input" class="schedule-message-input" rows="3" readonly></textarea>
+      </div>
 
       <div class="schedule-section">
         <label class="schedule-section-label" data-i18n="schedule.quickSelect">Quick pick</label>
@@ -212,6 +215,31 @@
       <div class="schedule-modal-actions">
         <button class="btn ghost" onclick="closeScheduleModal()" data-i18n="common.cancel">Cancel</button>
         <button class="btn primary" id="btn-confirm-schedule" onclick="confirmSchedule()" data-i18n="schedule.confirm">Schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sohbet notları / etiketler -->
+  <div id="notes-chat-overlay" class="overlay hidden">
+    <div class="card schedule-modal-card">
+      <div class="schedule-modal-header">
+        <div>
+          <h2><span data-icon="pencil" data-icon-size="20"></span> <span data-i18n="chats.notesTitle">Chat notes & tags</span></h2>
+          <p class="muted small" id="notes-chat-name">—</p>
+        </div>
+        <button class="icon-btn" onclick="closeNotesModal()" data-i18n-aria="common.close" aria-label="Close"><span data-icon="x"></span></button>
+      </div>
+      <div class="field" style="padding: 0 20px 12px;">
+        <label data-i18n="chats.notesLabel">Private notes</label>
+        <textarea id="notes-chat-input" rows="4" data-i18n-placeholder="chats.notesPlaceholder" placeholder="Notes only visible in this panel…"></textarea>
+      </div>
+      <div class="field" style="padding: 0 20px 16px;">
+        <label data-i18n="chats.tagsLabel">Tags (comma separated)</label>
+        <input type="text" id="notes-tags-input" data-i18n-placeholder="chats.tagsPlaceholder" placeholder="work, vip, follow-up" />
+      </div>
+      <div class="schedule-modal-actions">
+        <button class="btn ghost" onclick="closeNotesModal()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn primary" onclick="saveChatNotes()" data-i18n="common.save">Save</button>
       </div>
     </div>
   </div>
@@ -468,6 +496,23 @@
             <div class="stat-label" data-i18n="dashboard.scheduler">Scheduler</div>
             <div class="stat-value" id="stat-scheduler">-</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-label" data-i18n="dashboard.conversations">Conversations</div>
+            <div class="stat-value" id="stat-conversations">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label" data-i18n="dashboard.messagesStored">Messages stored</div>
+            <div class="stat-value" id="stat-messages">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label" data-i18n="dashboard.starred">Starred</div>
+            <div class="stat-value" id="stat-starred">-</div>
+          </div>
+        </div>
+
+        <div class="card dashboard-activity" id="dashboard-activity">
+          <h3 data-i18n="dashboard.activity">Recent activity</h3>
+          <div id="activity-log-list" class="activity-log-list muted small"></div>
         </div>
 
         <div class="grid-2">
@@ -517,6 +562,14 @@
           <button type="button" class="chat-filter" data-filter="unread" onclick="setChatListFilter('unread')" data-i18n="chats.filterUnread">Unread</button>
           <button type="button" class="chat-filter" data-filter="group" onclick="setChatListFilter('group')" data-i18n="chats.filterGroups">Groups</button>
           <button type="button" class="chat-filter" data-filter="private" onclick="setChatListFilter('private')" data-i18n="chats.filterPrivate">Private</button>
+          <button type="button" class="chat-filter" data-filter="pinned" onclick="setChatListFilter('pinned')" data-i18n="chats.filterPinned">Pinned</button>
+          <button type="button" class="chat-filter" data-filter="muted" onclick="setChatListFilter('muted')" data-i18n="chats.filterMuted">Muted</button>
+          <button type="button" class="chat-filter" data-filter="snoozed" onclick="setChatListFilter('snoozed')" data-i18n="chats.filterSnoozed">Snoozed</button>
+          <select id="tag-filter" class="chat-tag-filter" onchange="chatListCache=[]; loadChatThread(true)" aria-label="Tag filter">
+            <option value="" data-i18n="chats.filterByTag">All tags</option>
+          </select>
+          <button type="button" class="chat-filter chat-filter-action" onclick="toggleUnifiedInbox()" id="btn-unified-inbox" data-i18n="chats.unifiedInbox">All platforms</button>
+          <button type="button" class="chat-filter chat-filter-action" onclick="markAllChatsRead()" data-i18n="chats.markAllRead">Mark all read</button>
         </div>
         <div id="wa-sync-status" class="wa-sync-status hidden"></div>
         <div id="import-progress" class="import-progress hidden" role="status" aria-live="polite">
@@ -548,6 +601,13 @@
                 </div>
               </div>
               <div class="chat-header-actions">
+                <button type="button" class="icon-btn" id="btn-pin-chat" onclick="togglePinChat()" data-i18n-title="chats.pin" data-i18n-aria="chats.pin" title="Pin"><span data-icon="star"></span></button>
+                <button type="button" class="icon-btn" id="btn-mute-chat" onclick="toggleMuteChat()" data-i18n-title="chats.mute" data-i18n-aria="chats.mute" title="Mute"><span data-icon="bell-off"></span></button>
+                <button type="button" class="icon-btn" id="btn-snooze-chat" onclick="snoozeChat()" data-i18n-title="chats.snooze" data-i18n-aria="chats.snooze" title="Snooze"><span data-icon="clock"></span></button>
+                <button type="button" class="icon-btn" id="btn-followup-chat" onclick="createFollowUpForChat()" data-i18n-title="followUp.create" data-i18n-aria="followUp.create" title="Follow-up"><span data-icon="alarm-clock"></span></button>
+                <button type="button" class="icon-btn" id="btn-notes-chat" onclick="openNotesModal()" data-i18n-title="chats.notes" data-i18n-aria="chats.notes" title="Notes"><span data-icon="pencil"></span></button>
+                <button type="button" class="icon-btn" id="btn-export-chat-json" onclick="exportActiveChat('json')" data-i18n-title="chats.exportJson" data-i18n-aria="chats.exportJson" title="Export JSON"><span data-icon="download"></span></button>
+                <button type="button" class="icon-btn" id="btn-export-chat-csv" onclick="exportActiveChat('csv')" data-i18n-title="chats.exportCsv" data-i18n-aria="chats.exportCsv" title="Export CSV"><span data-icon="paperclip"></span></button>
                 <button type="button" class="icon-btn" id="btn-rename-chat" onclick="openRenameChatModal()" data-i18n-title="chats.rename" data-i18n-aria="chats.rename" title="Rename"><span data-icon="pencil"></span></button>
                 <span id="conn-badge" class="conn-badge disconnected"></span>
               </div>
@@ -613,6 +673,18 @@
               <div class="empty-state"><span class="empty-icon" data-icon="messages-square" data-icon-size="36"></span><p data-i18n="compose.emptyHint">Connect account first</p></div>
             </div>
 
+            <div id="reply-preview-bar" class="reply-preview-bar hidden">
+              <span data-icon="repeat" data-icon-size="14"></span>
+              <span id="reply-preview-text" class="reply-preview-text"></span>
+              <button type="button" class="icon-btn" onclick="cancelReply()" aria-label="Cancel reply"><span data-icon="x"></span></button>
+            </div>
+            <div class="compose-broadcast-panel hidden" id="broadcast-panel">
+              <label class="schedule-section-label" data-i18n="compose.broadcastLabel">Broadcast recipients (one chat ID per line, max 50)</label>
+              <textarea id="broadcast-recipients" rows="3" data-i18n-placeholder="compose.broadcastPlaceholder" placeholder="123456789&#10;905551234567@s.whatsapp.net"></textarea>
+              <label class="schedule-section-label" data-i18n="compose.broadcastCsv">Or import CSV (chat_id / phone column)</label>
+              <input type="file" id="broadcast-csv" accept=".csv,text/csv" onchange="uploadBroadcastCsv(event)" />
+              <p class="muted small" data-i18n="compose.broadcastHint">Same message goes to every recipient.</p>
+            </div>
             <!-- Mesaj alanı -->
             <div class="compose-editor">
               <textarea id="message-text" rows="6" maxlength="4096" data-i18n-placeholder="compose.messagePlaceholder" placeholder="Message…"></textarea>
@@ -629,6 +701,7 @@
 
             <!-- Teams tarzı alt aksiyon çubuğu -->
             <div class="compose-action-bar">
+              <label class="broadcast-toggle"><input type="checkbox" id="broadcast-mode" onchange="toggleBroadcastMode()" /> <span data-i18n="compose.broadcastMode">Broadcast mode</span></label>
               <button type="button" class="btn secondary" id="btn-send-now" onclick="sendMessageNow()">
                 <span data-icon="rocket" data-icon-size="16"></span> <span data-i18n="compose.sendNow">Send Now</span>
               </button>
@@ -662,7 +735,10 @@
             <button class="segment" data-status="failed" onclick="setScheduledFilter('failed')" data-i18n="dashboard.failed">Failed</button>
           </div>
           <button class="btn secondary small" onclick="loadScheduled()"><span data-icon="refresh-cw" data-icon-size="14"></span></button>
+          <button class="btn secondary small" onclick="loadScheduledCalendar()" data-i18n="scheduled.calendar">Calendar</button>
+          <button class="btn secondary small" onclick="exportScheduledJson()" data-i18n="scheduled.exportJson">Export</button>
         </div>
+        <div id="scheduled-calendar" class="scheduled-calendar hidden"></div>
 
         <div id="scheduled-list" class="scheduled-list">
           <div class="empty-state"><span class="empty-icon" data-icon="clock" data-icon-size="36"></span><p data-i18n="scheduled.loading">Loading…</p></div>
@@ -684,8 +760,13 @@
               <input type="text" id="template-title" data-i18n-placeholder="templates.titlePlaceholder" placeholder="Title" />
             </div>
             <div class="field">
+              <label data-i18n="templates.category">Category</label>
+              <input type="text" id="template-category" data-i18n-placeholder="templates.categoryPlaceholder" placeholder="general, sales, support" value="general" />
+            </div>
+            <div class="field">
               <label data-i18n="templates.body">Message body</label>
               <textarea id="template-text" rows="6" data-i18n-placeholder="templates.bodyPlaceholder" placeholder="Text"></textarea>
+              <p class="muted small templates-vars-hint" data-i18n="templates.variablesHint">Use {{date}}, {{time}}, {{chat_name}}, {{platform}} in templates.</p>
             </div>
             <button class="btn primary" onclick="saveTemplate()" data-i18n="templates.save">Save</button>
           </div>
@@ -784,6 +865,39 @@
 
             <p id="auth-status" class="status-msg"></p>
             <p id="wa-auth-status" class="status-msg hidden"></p>
+          </div>
+        </div>
+
+        <div class="card developer-card collapsed" id="auto-reply-card">
+          <h3><span data-icon="repeat" data-icon-size="18"></span> <span data-i18n="autoReply.title">Auto-reply rules</span></h3>
+          <p class="muted small" data-i18n="autoReply.subtitle">Keyword → automatic response on incoming messages.</p>
+          <div class="field">
+            <label data-i18n="autoReply.keyword">Keyword</label>
+            <input type="text" id="auto-reply-keyword" placeholder="hello" />
+            <label data-i18n="autoReply.matchMode">Match mode</label>
+            <select id="auto-reply-mode">
+              <option value="contains">contains</option>
+              <option value="exact">exact</option>
+              <option value="regex">regex</option>
+            </select>
+          </div>
+          <div class="field">
+            <label data-i18n="autoReply.response">Response</label>
+            <textarea id="auto-reply-response" rows="3" placeholder="Hi! We'll get back to you soon."></textarea>
+          </div>
+          <button class="btn primary" onclick="saveAutoReplyRule()" data-i18n="autoReply.save">Add rule</button>
+          <div id="auto-reply-list" class="auto-reply-list"></div>
+        </div>
+
+        <div class="card developer-card" id="backup-card">
+          <h3><span data-icon="database" data-icon-size="18"></span> <span data-i18n="backup.title">Backup & restore</span></h3>
+          <p class="muted small" data-i18n="backup.hint">Export templates, schedules, auto-replies and follow-ups as JSON.</p>
+          <div class="account-detail-actions">
+            <button class="btn secondary small" onclick="exportPanelBackup()" data-i18n="backup.export">Export backup</button>
+            <label class="btn ghost small">
+              <span data-i18n="backup.import">Import backup</span>
+              <input type="file" accept="application/json,.json" class="hidden" onchange="importPanelBackup(event)" />
+            </label>
           </div>
         </div>
 

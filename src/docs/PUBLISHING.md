@@ -40,14 +40,16 @@ git remote add origin git@github.com:bunyamindemir1/telegram-whatsapp-panel.git
 
 **About (description):**
 ```
-Self-hosted Telegram & WhatsApp unified inbox — schedule messages, send media, REST API & webhooks. FastAPI + Telethon + Baileys.
+Schedule WhatsApp & Telegram messages from one self-hosted panel — recurring sends, random daily windows, templates, unified inbox, REST API & webhooks on personal accounts. FastAPI + Telethon + Baileys. Docker.
 ```
 
-**Topics:** `telegram`, `whatsapp`, `telethon`, `baileys`, `fastapi`, `self-hosted`, `message-scheduler`, `unified-inbox`, `rest-api`, `webhooks`, `python`, `nodejs`, `docker`, `messaging`, `automation`, `open-source`, `i18n`, `message-panel`, `inbox`
+**Topics:** `telegram`, `whatsapp`, `message-scheduler`, `scheduled-messages`, `self-hosted`, `unified-inbox`, `telegram-panel`, `whatsapp-automation`, `fastapi`, `telethon`, `baileys`, `rest-api`, `webhooks`, `docker`, `messaging`, `automation`, `open-source`, `i18n`, `message-panel`, `inbox`
+
+Apply in one command: `./.github/apply-repo-seo.sh` (see [.github/REPO_ABOUT.md](../.github/REPO_ABOUT.md))
 
 | Setting | Where | Recommended |
 |---------|-------|-------------|
-| Description + topics | Settings → General | `telegram`, `whatsapp`, `fastapi`, `self-hosted`, `unified-inbox`, `message-scheduler` |
+| Description + topics | Settings → General | See REPO_ABOUT.md or run apply script |
 | Secret scanning | Settings → Code security | **On** |
 | Push protection | Settings → Code security | **On** |
 | Dependabot alerts | Settings → Code security | **On** |

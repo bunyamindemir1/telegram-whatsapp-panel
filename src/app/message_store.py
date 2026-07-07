@@ -1,7 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
 from typing import Any, Optional
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.account_service import get_default_account_id, resolve_account_id
@@ -68,7 +69,48 @@ def _msg_to_dict(m: ChatMessage) -> dict[str, Any]:
         d["media_filename"] = m.media_filename
         d["media_size"] = m.media_size
         d["caption"] = m.caption
+    if m.reply_to_message_id:
+        d["reply_to_message_id"] = m.reply_to_message_id
+    if getattr(m, "is_starred", False):
+        d["is_starred"] = True
     return d
+
+
+def _parse_tags(raw: Optional[str]) -> list[str]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return [str(t).strip() for t in data if str(t).strip()]
+    except json.JSONDecodeError:
+        pass
+    return []
+
+
+def _conv_to_dict(c: Conversation) -> dict[str, Any]:
+    return {
+        "id": c.chat_id,
+        "platform": c.platform,
+        "account_id": c.account_id,
+        "name": c.chat_name,
+        "display_phone": _format_phone_hint(c.chat_id, c.chat_name),
+        "chat_name_custom": bool(c.chat_name_custom),
+        "type": c.chat_type,
+        "last_message": c.last_message,
+        "last_timestamp": int(c.last_message_at.timestamp()) if c.last_message_at else None,
+        "unread_count": c.unread_count or 0,
+        "is_pinned": bool(getattr(c, "is_pinned", False)),
+        "pinned_at": (
+            c.pinned_at.isoformat() + "Z" if getattr(c, "pinned_at", None) else None
+        ),
+        "notes": getattr(c, "notes", None) or "",
+        "tags": _parse_tags(getattr(c, "tags_json", None)),
+        "is_muted": bool(getattr(c, "is_muted", False)),
+        "snoozed_until": (
+            c.snoozed_until.isoformat() + "Z" if getattr(c, "snoozed_until", None) else None
+        ),
+    }
 
 
 async def save_message(
@@ -176,6 +218,12 @@ async def save_message(
             )
         )
         row = result.scalar_one()
+        if not from_me:
+            try:
+                from app.follow_up_service import cancel_follow_ups_for_chat
+                await cancel_follow_ups_for_chat(platform, chat_id, aid)
+            except Exception:
+                pass
         return _msg_to_dict(row)
 
 
@@ -420,6 +468,7 @@ async def search_messages(
     platform: Optional[str] = None,
     limit: int = 50,
     account_id: Optional[int] = None,
+    tag: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     q = query.strip()
     if not q:
@@ -455,7 +504,19 @@ async def search_messages(
             stmt = stmt.where(ChatMessage.account_id == aid)
         result = await session.execute(stmt)
         items = []
+        tag_l = tag.strip().lower() if tag else None
         for msg, chat_name in result.all():
+            if tag_l:
+                conv = await session.scalar(
+                    select(Conversation).where(
+                        Conversation.account_id == msg.account_id,
+                        Conversation.chat_id == msg.chat_id,
+                        Conversation.platform == msg.platform,
+                    )
+                )
+                conv_tags = [t.lower() for t in _parse_tags(getattr(conv, "tags_json", None) if conv else None)]
+                if tag_l not in conv_tags:
+                    continue
             d = _msg_to_dict(msg)
             d["chat_name"] = chat_name or msg.chat_id
             items.append(d)
@@ -547,33 +608,39 @@ async def update_conversation_label(
 async def list_conversations(
     platform: Optional[str] = None,
     account_id: Optional[int] = None,
+    *,
+    unified: bool = False,
+    tag: Optional[str] = None,
+    include_snoozed: bool = False,
 ) -> list[dict[str, Any]]:
     async with async_session() as session:
-        query = select(Conversation).order_by(Conversation.last_message_at.desc().nullslast())
-        if platform:
+        query = select(Conversation)
+        if platform and not unified:
             query = query.where(Conversation.platform == platform)
             aid = await resolve_account_id(platform, account_id)
             query = query.where(Conversation.account_id == aid)
-        elif account_id is not None:
+        elif account_id is not None and not unified:
             query = query.where(Conversation.account_id == account_id)
         result = await session.execute(query)
         convs = result.scalars().all()
-        items = [
-            {
-                "id": c.chat_id,
-                "platform": c.platform,
-                "account_id": c.account_id,
-                "name": c.chat_name,
-                "display_phone": _format_phone_hint(c.chat_id, c.chat_name),
-                "chat_name_custom": bool(c.chat_name_custom),
-                "type": c.chat_type,
-                "last_message": c.last_message,
-                "last_timestamp": int(c.last_message_at.timestamp()) if c.last_message_at else None,
-                "unread_count": c.unread_count or 0,
-            }
-            for c in convs
-        ]
-        if platform == "whatsapp":
+        items = [_conv_to_dict(c) for c in convs]
+        now = datetime.utcnow()
+        if not include_snoozed:
+            items = [
+                i for i in items
+                if not i.get("snoozed_until")
+                or datetime.fromisoformat(i["snoozed_until"].replace("Z", "")) <= now
+            ]
+        if tag:
+            tag_l = tag.strip().lower()
+            items = [i for i in items if tag_l in [t.lower() for t in i.get("tags", [])]]
+        items.sort(
+            key=lambda x: (
+                0 if x.get("is_pinned") else 1,
+                -(x.get("last_timestamp") or 0),
+            ),
+        )
+        if platform == "whatsapp" and not unified:
             return _dedupe_conversations(items)
         return items
 
@@ -591,3 +658,171 @@ async def mark_read(
             .values(unread_count=0)
         )
         await session.commit()
+
+
+async def update_conversation_meta(
+    platform: str,
+    chat_id: str,
+    *,
+    account_id: Optional[int] = None,
+    is_pinned: Optional[bool] = None,
+    notes: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    is_muted: Optional[bool] = None,
+    snooze_hours: Optional[int] = None,
+    clear_snooze: bool = False,
+) -> dict[str, Any]:
+    aid = await resolve_account_id(platform, account_id)
+    async with async_session() as session:
+        conv = await session.scalar(
+            select(Conversation).where(
+                Conversation.account_id == aid,
+                Conversation.chat_id == chat_id,
+                Conversation.platform == platform,
+            )
+        )
+        if not conv:
+            conv = Conversation(
+                account_id=aid,
+                platform=platform,
+                chat_id=chat_id,
+                chat_name=chat_id,
+                chat_type="private",
+                unread_count=0,
+                updated_at=datetime.utcnow(),
+            )
+            session.add(conv)
+        if is_pinned is not None:
+            conv.is_pinned = is_pinned
+            conv.pinned_at = datetime.utcnow() if is_pinned else None
+        if notes is not None:
+            conv.notes = notes.strip()
+        if tags is not None:
+            clean = [t.strip() for t in tags if t and t.strip()][:20]
+            conv.tags_json = json.dumps(clean)
+        if is_muted is not None:
+            conv.is_muted = is_muted
+        if clear_snooze:
+            conv.snoozed_until = None
+        elif snooze_hours is not None:
+            conv.snoozed_until = datetime.utcnow() + timedelta(hours=max(1, snooze_hours))
+        conv.updated_at = datetime.utcnow()
+        await session.commit()
+        await session.refresh(conv)
+    return _conv_to_dict(conv)
+
+
+async def mark_all_read(
+    platform: str,
+    account_id: Optional[int] = None,
+) -> int:
+    aid = await resolve_account_id(platform, account_id)
+    async with async_session() as session:
+        result = await session.execute(
+            update(Conversation)
+            .where(
+                Conversation.account_id == aid,
+                Conversation.platform == platform,
+                Conversation.unread_count > 0,
+            )
+            .values(unread_count=0)
+        )
+        await session.commit()
+        return result.rowcount or 0
+
+
+async def count_conversations(platform: Optional[str] = None) -> int:
+    async with async_session() as session:
+        query = select(func.count()).select_from(Conversation)
+        if platform:
+            query = query.where(Conversation.platform == platform)
+        return int(await session.scalar(query) or 0)
+
+
+async def count_messages(platform: Optional[str] = None) -> int:
+    async with async_session() as session:
+        query = select(func.count()).select_from(ChatMessage)
+        if platform:
+            query = query.where(ChatMessage.platform == platform)
+        return int(await session.scalar(query) or 0)
+
+
+async def list_all_tags(platform: Optional[str] = None, account_id: Optional[int] = None) -> list[str]:
+    async with async_session() as session:
+        query = select(Conversation)
+        if platform:
+            aid = await resolve_account_id(platform, account_id)
+            query = query.where(Conversation.platform == platform, Conversation.account_id == aid)
+        elif account_id is not None:
+            query = query.where(Conversation.account_id == account_id)
+        rows = (await session.execute(query)).scalars().all()
+    tags: set[str] = set()
+    for row in rows:
+        for t in _parse_tags(row.tags_json):
+            tags.add(t)
+    return sorted(tags, key=str.lower)
+
+
+async def set_message_starred(
+    platform: str,
+    chat_id: str,
+    message_id: str,
+    starred: bool,
+    account_id: Optional[int] = None,
+) -> bool:
+    aid = await resolve_account_id(platform, account_id)
+    async with async_session() as session:
+        msg = await session.scalar(
+            select(ChatMessage).where(
+                ChatMessage.account_id == aid,
+                ChatMessage.chat_id == chat_id,
+                ChatMessage.message_id == message_id,
+                ChatMessage.platform == platform,
+            )
+        )
+        if not msg:
+            return False
+        msg.is_starred = starred
+        await session.commit()
+        return True
+
+
+async def list_starred_messages(
+    platform: Optional[str] = None,
+    account_id: Optional[int] = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    aid = None
+    if platform:
+        aid = await resolve_account_id(platform, account_id)
+    async with async_session() as session:
+        stmt = (
+            select(ChatMessage, Conversation.chat_name)
+            .outerjoin(
+                Conversation,
+                (Conversation.account_id == ChatMessage.account_id)
+                & (Conversation.chat_id == ChatMessage.chat_id),
+            )
+            .where(ChatMessage.is_starred.is_(True))
+            .order_by(ChatMessage.timestamp.desc())
+            .limit(limit)
+        )
+        if platform:
+            stmt = stmt.where(ChatMessage.platform == platform)
+        if aid is not None:
+            stmt = stmt.where(ChatMessage.account_id == aid)
+        result = await session.execute(stmt)
+        items = []
+        for msg, chat_name in result.all():
+            d = _msg_to_dict(msg)
+            d["chat_name"] = chat_name or msg.chat_id
+            items.append(d)
+        return items
+
+
+async def count_starred_messages(platform: Optional[str] = None) -> int:
+    async with async_session() as session:
+        query = select(func.count()).select_from(ChatMessage).where(ChatMessage.is_starred.is_(True))
+        if platform:
+            query = query.where(ChatMessage.platform == platform)
+        return int(await session.scalar(query) or 0)

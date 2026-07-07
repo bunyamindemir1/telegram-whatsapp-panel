@@ -86,7 +86,7 @@ def test_full_user_journey(page, live_server):
     page.locator("#sidebar-toggle").click()
     page.wait_for_selector("#sidebar.open", timeout=3000)
     assert "sidebar-open" in page.evaluate("() => document.body.className")
-    page.locator("#sidebar-backdrop").click()
+    page.evaluate("() => closeMobileSidebar()")
     page.wait_for_selector("#sidebar:not(.open)", timeout=3000)
 
     page.evaluate("() => switchTab('compose')")

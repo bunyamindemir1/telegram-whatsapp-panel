@@ -22,6 +22,7 @@ EVENT_TYPES = (
     "account.disconnected",
     "scheduled.sent",
     "scheduled.failed",
+    "follow_up.triggered",
 )
 
 

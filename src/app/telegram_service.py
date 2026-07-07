@@ -201,6 +201,16 @@ class TelegramService:
                 "message.received" if not saved.get("from_me") else "message.sent",
                 saved,
             )
+            if not saved.get("from_me"):
+                from app.auto_reply_service import try_auto_reply
+                await try_auto_reply(
+                    platform="telegram",
+                    account_id=account_id,
+                    chat_id=chat_id,
+                    text=saved.get("text") or "",
+                    chat_name=chat_name,
+                    chat_type=chat_type,
+                )
             await realtime_hub.broadcast({
                 "type": "conversation_update",
                 "platform": "telegram",
@@ -541,6 +551,7 @@ class TelegramService:
         chat_name: str = "",
         chat_type: str = "unknown",
         account_id: int = 1,
+        reply_to_message_id: Optional[str] = None,
     ) -> dict[str, Any]:
         if not outbound_allowed():
             ensure_outbound_allowed()
@@ -552,7 +563,11 @@ class TelegramService:
         if chat_type == "unknown":
             chat_type, _ = self._entity_meta(entity)
 
-        result = await client.send_message(entity, message)
+        result = await client.send_message(
+            entity,
+            message,
+            reply_to=int(reply_to_message_id) if reply_to_message_id else None,
+        )
         ts = result.date.replace(tzinfo=timezone.utc) if result.date else datetime.now(timezone.utc)
         saved = await save_message(
             platform="telegram",
@@ -564,6 +579,7 @@ class TelegramService:
             chat_name=chat_name,
             chat_type=chat_type,
             account_id=account_id,
+            reply_to_message_id=reply_to_message_id,
         )
         await realtime_hub.broadcast({"type": "message", "data": saved})
         return {"message_id": result.id, "date": saved["timestamp"], "saved": saved}

@@ -569,6 +569,7 @@ function switchTab(tab) {
   if (tab === "account") {
     showAccountPanel(currentPlatform);
     checkAuthStatus(panelAccountId || getAccountId());
+    loadAutoReplies();
     if (!document.getElementById("developer-card")?.classList.contains("collapsed")) {
       loadDeveloperTools();
     }
@@ -1289,6 +1290,12 @@ async function loadStats() {
     document.getElementById("stat-failed").textContent = s.failed;
     document.getElementById("stat-scheduler").textContent = s.scheduler.running ? tt("status.schedulerOn") : tt("status.schedulerOff");
     document.getElementById("stat-scheduler").classList.toggle("success", s.scheduler.running);
+    const convEl = document.getElementById("stat-conversations");
+    const msgEl = document.getElementById("stat-messages");
+    if (convEl) convEl.textContent = s.conversations_total ?? "0";
+    if (msgEl) msgEl.textContent = s.messages_total ?? "0";
+    const starEl = document.getElementById("stat-starred");
+    if (starEl) starEl.textContent = s.starred_messages ?? "0";
     document.getElementById("pending-badge").classList.toggle("hidden", !s.pending);
     if (s.pending) document.getElementById("pending-badge").textContent = s.pending;
     const mobBadge = document.getElementById("mobile-pending-badge");
@@ -1317,7 +1324,20 @@ async function loadStats() {
     } else {
       nextBox.innerHTML = `<p class="muted">${tt("dashboard.noScheduled")}</p>`;
     }
+    loadActivityLog();
   } catch (e) { console.error(e); }
+}
+
+async function loadActivityLog() {
+  const box = document.getElementById("activity-log-list");
+  if (!box) return;
+  try {
+    const rows = await api("/api/activity?limit=12");
+    if (!rows.length) { box.innerHTML = `<p class="muted">${tt("dashboard.noActivity")}</p>`; return; }
+    box.innerHTML = rows.map((r) =>
+      `<div class="activity-row"><span class="activity-action">${escapeHtml(r.action)}</span> <span class="muted">${formatShortTime(r.created_at)}</span></div>`
+    ).join("");
+  } catch (_) { box.innerHTML = ""; }
 }
 
 function startCountdown(target) {
@@ -1530,6 +1550,8 @@ function updateConnectionBadge() {
 let chatListCache = [];
 let chatSearchTimer = null;
 let chatListFilter = "all";
+let unifiedInboxMode = false;
+let replyToMessage = null;
 let threadMessages = [];
 let threadHasMore = false;
 
@@ -1608,6 +1630,9 @@ function applyChatListFilter(chats) {
   if (chatListFilter === "unread") return chats.filter((c) => (c.unread_count || 0) > 0);
   if (chatListFilter === "group") return chats.filter((c) => c.type === "group" || c.type === "supergroup");
   if (chatListFilter === "private") return chats.filter((c) => c.type === "private" || c.type === "user");
+  if (chatListFilter === "pinned") return chats.filter((c) => c.is_pinned);
+  if (chatListFilter === "muted") return chats.filter((c) => c.is_muted);
+  if (chatListFilter === "snoozed") return chats.filter((c) => c.snoozed_until && new Date(c.snoozed_until) > new Date());
   return chats;
 }
 
@@ -1655,12 +1680,14 @@ function renderChatListItems(chats) {
     const avatarClass = wa ? "wa-avatar" : "tg-avatar";
     const disp = getChatDisplay(c);
     const subtitle = disp.subtitle ? `<div class="chat-item-sub muted small">${escapeHtml(disp.subtitle)}</div>` : "";
-    return `<div class="chat-item wa-style ${activeThreadChat?.id === c.id ? "selected" : ""}" data-chat-id="${encodeURIComponent(c.id)}" onclick="openThreadFromEl(this)">
+    const pin = c.is_pinned ? `<span class="chat-pin-badge">${icon("star", { size: 12 })}</span>` : "";
+    const platBadge = unifiedInboxMode && c.platform ? `<span class="platform-tag ${c.platform} mini">${PLATFORM_LABELS[c.platform] || c.platform}</span>` : "";
+    return `<div class="chat-item wa-style ${activeThreadChat?.id === c.id ? "selected" : ""}" data-chat-id="${encodeURIComponent(c.id)}" data-platform="${c.platform || currentPlatform}" onclick="openThreadFromEl(this)">
       <div class="chat-item-avatar ${avatarClass}">${escapeHtml(chatInitials(disp.title))}</div>
       <div class="chat-item-body">
         <div class="chat-item-top">
           <div class="chat-item-name-wrap">
-            <div class="chat-item-name">${escapeHtml(disp.title)}</div>
+            <div class="chat-item-name">${pin}${escapeHtml(disp.title)} ${platBadge}</div>
             ${subtitle}
           </div>
           <span class="chat-item-time">${formatShortTime(c.last_timestamp)}</span>
@@ -1977,8 +2004,16 @@ function renderThreadMessages(msgs, append = false) {
     const showSender = !m.from_me && (isGroup || wa) && m.sender_name;
     html += `<div class="msg-bubble ${me}${extra}" data-id="${dedupId}" data-msg-id="${dedupId}">
       ${showSender ? `<div class="msg-sender">${escapeHtml(m.sender_name)}</div>` : ""}
+      ${m.reply_to_message_id ? `<div class="msg-reply-ref muted small">${tt("chats.replyTo")} #${escapeHtml(m.reply_to_message_id)}</div>` : ""}
       ${renderMessageContent(m)}
-      <div class="msg-time">${formatBubbleTime(m.timestamp)}</div>
+      <div class="msg-footer">
+        <div class="msg-time">${formatBubbleTime(m.timestamp)}</div>
+        <div class="msg-actions">
+          <button type="button" class="msg-action-btn" onclick='setReplyTo(${JSON.stringify(String(dedupId))}, ${JSON.stringify((m.text || "").slice(0, 80))})' title="${tt("chats.reply")}">${icon("repeat", { size: 12 })}</button>
+          <button type="button" class="msg-action-btn" onclick='toggleMessageStar(${JSON.stringify(String(dedupId))}, ${m.is_starred ? "false" : "true"})' title="${tt(m.is_starred ? "chats.unstar" : "chats.star")}">${icon("star", { size: 12, class: m.is_starred ? "starred" : "" })}</button>
+          <button type="button" class="msg-action-btn" onclick='copyMessageText(${JSON.stringify(m.text || "")})' title="${tt("chats.copy")}">${icon("copy", { size: 12 })}</button>
+        </div>
+      </div>
     </div>`;
   }
   if (append) {
@@ -2013,12 +2048,17 @@ async function loadChatThread(refresh = false) {
   if (refresh || !chatListCache.length) {
     showChatListSkeleton();
     try {
-      const url = withAccountId(`/api/conversations?platform=${currentPlatform}${refresh ? "&refresh=true" : ""}`);
+      const tag = document.getElementById("tag-filter")?.value || "";
+      const tagQ = tag ? `&tag=${encodeURIComponent(tag)}` : "";
+      const url = unifiedInboxMode
+        ? `/api/conversations?unified=true${tagQ}`
+        : withAccountId(`/api/conversations?platform=${currentPlatform}${refresh ? "&refresh=true" : ""}${tagQ}`);
       chatListCache = await api(url);
-      if (!chatListCache.length) {
+      if (!unifiedInboxMode && !chatListCache.length) {
         chatListCache = await api(withAccountId(`/api/chats?platform=${currentPlatform}${refresh ? "&refresh=true" : ""}`));
       }
       allChats = chatListCache;
+      refreshTagFilterOptions();
     } catch (e) {
       list.innerHTML = emptyState("alert-triangle", escapeHtml(e.message));
       return;
@@ -2043,7 +2083,9 @@ async function searchMessagesGlobal(query) {
     return;
   }
   try {
-    const results = await api(withAccountId(`/api/messages/search?q=${encodeURIComponent(query)}&platform=${currentPlatform}&limit=30`));
+    const tag = document.getElementById("tag-filter")?.value || "";
+    const tagQ = tag ? `&tag=${encodeURIComponent(tag)}` : "";
+    const results = await api(withAccountId(`/api/messages/search?q=${encodeURIComponent(query)}&platform=${currentPlatform}&limit=30${tagQ}`));
     if (!results.length) {
       box.innerHTML = `<p class="muted small">${tt("chats.noMessagesFound")}</p>`;
       box.classList.remove("hidden");
@@ -2164,6 +2206,9 @@ async function syncAllMessages(silent = false) {
 }
 
 function openThreadFromEl(el) {
+  if (unifiedInboxMode && el.dataset.platform && el.dataset.platform !== currentPlatform) {
+    setPlatform(el.dataset.platform);
+  }
   openThread(decodeURIComponent(el.dataset.chatId));
 }
 
@@ -2238,6 +2283,10 @@ async function openThread(id, restoreOnly = false) {
     av.className = `chat-header-avatar ${currentPlatform === "whatsapp" ? "wa-avatar" : "tg-avatar"}`;
   }
   updateConnectionBadge();
+  const pinBtn = document.getElementById("btn-pin-chat");
+  if (pinBtn) pinBtn.classList.toggle("active", !!activeThreadChat.is_pinned);
+  const replyEl = document.getElementById("chat-reply");
+  if (replyEl && !replyEl.value) replyEl.value = loadDraft(`chat-reply:${currentPlatform}:${id}`) || "";
 
   if (restoreOnly && threadMessages.length) {
     renderThreadMessages(threadMessages);
@@ -2250,7 +2299,8 @@ async function openThread(id, restoreOnly = false) {
   showThreadSkeleton();
 
   try {
-    const msgs = await api(withAccountId(`/api/messages/${currentPlatform}/${encodeURIComponent(id)}?limit=80`));
+    const plat = activeThreadChat.platform || currentPlatform;
+    const msgs = await api(withAccountId(`/api/messages/${plat}/${encodeURIComponent(id)}?limit=80`, plat));
     threadMessages = msgs;
     threadHasMore = msgs.length >= 80;
     renderThreadMessages(msgs);
@@ -2296,9 +2346,12 @@ async function sendChatReply() {
         message: text,
         chat_name: activeThreadChat.name,
         chat_type: activeThreadChat.type || "unknown",
+        reply_to_message_id: replyToMessage?.id || null,
       }),
     });
     document.getElementById("chat-reply").value = "";
+    saveDraft("chat-reply", "");
+    cancelReply();
     toast(tt("toast.sent"), "success");
     const msgs = await api(withAccountId(`/api/messages/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}?limit=100`));
     renderThreadMessages(msgs);
@@ -2409,6 +2462,36 @@ function openScheduleFromChat() {
 
 // ─── Compose / Schedule (Teams tarzı) ────────────────
 let scheduleRepeatType = "none";
+let scheduleEditingJobId = null;
+
+function getScheduleModalMessage() {
+  return document.getElementById("schedule-modal-message-input")?.value.trim() || "";
+}
+
+function setScheduleModalMessage(text, { editable = false } = {}) {
+  const input = document.getElementById("schedule-modal-message-input");
+  if (!input) return;
+  input.value = text || "";
+  input.readOnly = !editable;
+}
+
+function resetScheduleModalMode() {
+  scheduleEditingJobId = null;
+  setScheduleModalMessage("", { editable: false });
+  const titleEl = document.getElementById("schedule-modal-title-text");
+  if (titleEl) titleEl.textContent = tt("schedule.title");
+  const btn = document.getElementById("btn-confirm-schedule");
+  if (btn) btn.textContent = tt("schedule.confirm");
+}
+
+function isoToLocalDateTimeParts(isoStr) {
+  const d = new Date(isoStr);
+  const pad = (n) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
 let scheduledFilterStatus = "";
 
 function getTrNow() {
@@ -2553,27 +2636,70 @@ function updateSchedulePreview() {
 }
 
 function openScheduleModal(opts = {}) {
-  if (!selectedChat && !opts.fromChat) { toastT("toast.pickRecipient", "error"); return; }
+  if (!selectedChat && !opts.fromChat && !opts.editJob) { toastT("toast.pickRecipient", "error"); return; }
   const message = opts.message ?? document.getElementById("message-text")?.value.trim();
-  if (!message) { toastT("toast.writeMessage", "error"); return; }
+  if (!message && !opts.editJob) { toastT("toast.writeMessage", "error"); return; }
 
-  document.getElementById("schedule-modal-message").textContent = message;
+  resetScheduleModalMode();
+  if (opts.editJob) {
+    openScheduleModalForEdit(opts.editJob);
+    return;
+  }
+
+  setScheduleModalMessage(message, { editable: false });
   document.getElementById("schedule-modal-recipient").textContent =
     `${PLATFORM_LABELS[currentPlatform]} · ${selectedChat?.name || "—"}`;
   setRepeatPill("none");
   applySchedulePreset("30m");
   document.getElementById("schedule-modal").classList.remove("hidden");
-  document.getElementById("schedule-modal").dataset.message = message;
   document.getElementById("schedule-modal").dataset.fromChat = opts.fromChat ? "1" : "";
+}
+
+function openScheduleModalForEdit(job) {
+  scheduleEditingJobId = job.id;
+  selectedChat = {
+    id: job.chat_id,
+    name: job.chat_name || job.chat_id,
+    type: job.chat_type || "unknown",
+  };
+  if (job.platform) currentPlatform = job.platform;
+  if (job.account_id) currentAccountId[job.platform || currentPlatform] = job.account_id;
+  setScheduleModalMessage(job.message_text || "", { editable: true });
+  document.getElementById("schedule-modal-recipient").textContent =
+    `${PLATFORM_LABELS[job.platform || currentPlatform]} · ${job.chat_name || job.chat_id}`;
+  const titleEl = document.getElementById("schedule-modal-title-text");
+  if (titleEl) titleEl.textContent = tt("scheduled.editTitle");
+  const btn = document.getElementById("btn-confirm-schedule");
+  if (btn) btn.textContent = tt("scheduled.saveChanges");
+
+  setRepeatPill(job.repeat_type || "none");
+  if (job.repeat_type === "custom" && job.repeat_interval_minutes) {
+    const intervalEl = document.getElementById("modal-repeat-interval");
+    if (intervalEl) intervalEl.value = job.repeat_interval_minutes;
+  }
+  if (job.repeat_type === "random_daily") {
+    applyWindowPreset(job.window_start_time || "07:00", job.window_end_time || "07:30");
+  } else if (job.scheduled_at) {
+    const parts = isoToLocalDateTimeParts(job.scheduled_at);
+    const dateEl = document.getElementById("modal-schedule-date");
+    const timeEl = document.getElementById("modal-schedule-time");
+    if (dateEl) dateEl.value = parts.date;
+    if (timeEl) timeEl.value = parts.time;
+    updateSchedulePreview();
+  }
+
+  document.getElementById("schedule-modal").classList.remove("hidden");
+  document.getElementById("schedule-modal").dataset.fromChat = "";
 }
 
 function closeScheduleModal() {
   document.getElementById("schedule-modal")?.classList.add("hidden");
+  resetScheduleModalMode();
 }
 
 async function submitScheduledJob(sendNow, messageOverride) {
   if (!selectedChat) { toast(tt("toast.pickRecipient"), "error"); return false; }
-  const message = messageOverride ?? document.getElementById("message-text")?.value.trim();
+  const message = messageOverride ?? getScheduleModalMessage() ?? document.getElementById("message-text")?.value.trim();
   if (!message) { toast(tt("toast.emptyMessage"), "error"); return false; }
 
   let scheduledAt;
@@ -2611,6 +2737,19 @@ async function submitScheduledJob(sendNow, messageOverride) {
     window_end_time: win?.end || null,
   };
 
+  if (scheduleEditingJobId) {
+    const updateBody = {
+      message_text: message,
+      scheduled_at: repeatType === "random_daily" ? null : scheduledAt,
+      repeat_type: repeatType,
+      repeat_interval_minutes: body.repeat_interval_minutes,
+      window_start_time: body.window_start_time,
+      window_end_time: body.window_end_time,
+    };
+    await api(`/api/scheduled/${scheduleEditingJobId}`, { method: "PUT", body: JSON.stringify(updateBody) });
+    return { scheduledAt, sendNow, response: { id: scheduleEditingJobId }, updated: true };
+  }
+
   const r = await api("/api/scheduled", { method: "POST", body: JSON.stringify(body) });
   if (sendNow) await api(`/api/scheduled/${r.id}/send-now`, { method: "POST" });
   return { scheduledAt, sendNow, response: r };
@@ -2618,20 +2757,21 @@ async function submitScheduledJob(sendNow, messageOverride) {
 
 async function confirmSchedule() {
   const modal = document.getElementById("schedule-modal");
-  const message = modal?.dataset.message || "";
   const fromChat = modal?.dataset.fromChat === "1";
   const btn = document.getElementById("btn-confirm-schedule");
   if (btn) btn.disabled = true;
   try {
-    const result = await submitScheduledJob(false, message);
+    const result = await submitScheduledJob(false);
     closeScheduleModal();
     if (fromChat) document.getElementById("chat-reply").value = "";
-    else {
+    else if (!result?.updated) {
       document.getElementById("message-text").value = "";
       document.getElementById("message-text").dispatchEvent(new Event("input"));
     }
     const when = result?.response?.scheduled_at_tr;
-    if (scheduleRepeatType === "random_daily" && when) {
+    if (result?.updated) {
+      toastT("toast.scheduleUpdated", "success");
+    } else if (scheduleRepeatType === "random_daily" && when) {
       toastT("toast.randomScheduled", "success", { when });
     } else {
       toastT("toast.scheduledMsg", "success");
@@ -2649,11 +2789,14 @@ async function sendMessageNow() {
   const btn = document.getElementById("btn-send-now");
   if (btn) btn.disabled = true;
   try {
-    if (composeSelectedFile) {
+    if (document.getElementById("broadcast-mode")?.checked) {
+      await sendBroadcastNow();
+    } else if (composeSelectedFile) {
       await sendComposeMedia(composeSelectedFile, true);
     } else {
       await submitScheduledJob(true);
       document.getElementById("message-text").value = "";
+      saveDraft("compose-message", "");
       document.getElementById("message-text").dispatchEvent(new Event("input"));
       toastT("toast.platformSent", "success", { platform: PLATFORM_LABELS[currentPlatform] });
     }
@@ -2676,7 +2819,326 @@ function setScheduledFilter(status) {
 
 document.getElementById("message-text")?.addEventListener("input", (e) => {
   document.getElementById("char-count").textContent = e.target.value.length;
+  saveDraft("compose-message", e.target.value);
 });
+
+document.getElementById("chat-reply")?.addEventListener("input", (e) => {
+  if (activeThreadChat?.id) saveDraft(`chat-reply:${currentPlatform}:${activeThreadChat.id}`, e.target.value);
+});
+
+// ─── Panel feature helpers ───────────────────────────
+function saveDraft(key, value) {
+  try { localStorage.setItem(`mesaj_draft_${key}`, value || ""); } catch (_) { /* ignore */ }
+}
+function loadDraft(key) {
+  try { return localStorage.getItem(`mesaj_draft_${key}`) || ""; } catch (_) { return ""; }
+}
+
+function toggleUnifiedInbox() {
+  unifiedInboxMode = !unifiedInboxMode;
+  document.getElementById("btn-unified-inbox")?.classList.toggle("active", unifiedInboxMode);
+  chatListCache = [];
+  loadChatThread(true);
+}
+
+async function markAllChatsRead() {
+  try {
+    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/mark-all-read`), { method: "POST" });
+    toastT("toast.markAllRead", "success", { count: r.cleared || 0 });
+    chatListCache = [];
+    await loadChatThread(true);
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function togglePinChat() {
+  if (!activeThreadChat) return;
+  const next = !activeThreadChat.is_pinned;
+  try {
+    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+      method: "PATCH",
+      body: JSON.stringify({ is_pinned: next }),
+    });
+    activeThreadChat.is_pinned = r.is_pinned;
+    document.getElementById("btn-pin-chat")?.classList.toggle("active", r.is_pinned);
+    chatListCache = chatListCache.map((c) => (c.id === activeThreadChat.id ? { ...c, is_pinned: r.is_pinned } : c));
+    loadChatThread(false);
+    toastT(r.is_pinned ? "toast.pinned" : "toast.unpinned", "success");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function toggleMuteChat() {
+  if (!activeThreadChat) return;
+  const next = !activeThreadChat.is_muted;
+  try {
+    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+      method: "PATCH",
+      body: JSON.stringify({ is_muted: next }),
+    });
+    activeThreadChat.is_muted = r.is_muted;
+    document.getElementById("btn-mute-chat")?.classList.toggle("active", r.is_muted);
+    chatListCache = chatListCache.map((c) => (c.id === activeThreadChat.id ? { ...c, is_muted: r.is_muted } : c));
+    toastT(next ? "toast.muted" : "toast.unmuted", "success");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function snoozeChat() {
+  if (!activeThreadChat) return;
+  try {
+    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+      method: "PATCH",
+      body: JSON.stringify({ snooze_hours: 8 }),
+    });
+    activeThreadChat.snoozed_until = r.snoozed_until;
+    chatListCache = [];
+    await loadChatThread(true);
+    toastT("toast.snoozed", "success");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function createFollowUpForChat() {
+  if (!activeThreadChat) return;
+  const reminder_text = prompt(tt("followUp.prompt"), tt("followUp.defaultText"));
+  if (!reminder_text) return;
+  try {
+    await api("/api/follow-ups", {
+      method: "POST",
+      body: JSON.stringify({
+        platform: currentPlatform,
+        chat_id: activeThreadChat.id,
+        chat_name: activeThreadChat.name || activeThreadChat.id,
+        reminder_text,
+        wait_hours: 24,
+        account_id: getAccountId(),
+      }),
+    });
+    toastT("toast.followUpCreated", "success");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function toggleMessageStar(messageId, starred) {
+  if (!activeThreadChat) return;
+  const star = starred === true || starred === "true";
+  try {
+    await api(withAccountId(`/api/messages/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/${encodeURIComponent(messageId)}/star`), {
+      method: "PATCH",
+      body: JSON.stringify({ starred: star }),
+    });
+    threadMessages = threadMessages.map((m) => ((m.message_id || m.id) === messageId ? { ...m, is_starred: star } : m));
+    renderThreadMessages(threadMessages);
+    toastT(star ? "toast.starred" : "toast.unstarred", "success");
+    loadStats();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function refreshTagFilterOptions() {
+  const sel = document.getElementById("tag-filter");
+  if (!sel) return;
+  try {
+    const tags = await api(withAccountId(`/api/conversations/tags?platform=${currentPlatform}`));
+    const current = sel.value;
+    sel.innerHTML = `<option value="">${tt("chats.filterByTag")}</option>` +
+      tags.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+    if (current && tags.includes(current)) sel.value = current;
+  } catch (_) { /* ignore */ }
+}
+
+function openNotesModal() {
+  if (!activeThreadChat) return;
+  document.getElementById("notes-chat-name").textContent = activeThreadChat.name || activeThreadChat.id;
+  document.getElementById("notes-chat-input").value = activeThreadChat.notes || "";
+  document.getElementById("notes-tags-input").value = (activeThreadChat.tags || []).join(", ");
+  document.getElementById("notes-chat-overlay")?.classList.remove("hidden");
+}
+function closeNotesModal() {
+  document.getElementById("notes-chat-overlay")?.classList.add("hidden");
+}
+async function saveChatNotes() {
+  if (!activeThreadChat) return;
+  const notes = document.getElementById("notes-chat-input")?.value || "";
+  const tags = (document.getElementById("notes-tags-input")?.value || "").split(",").map((t) => t.trim()).filter(Boolean);
+  try {
+    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+      method: "PATCH",
+      body: JSON.stringify({ notes, tags }),
+    });
+    activeThreadChat.notes = r.notes;
+    activeThreadChat.tags = r.tags;
+    chatListCache = chatListCache.map((c) => (c.id === activeThreadChat.id ? { ...c, notes: r.notes, tags: r.tags } : c));
+    closeNotesModal();
+    toastT("toast.notesSaved", "success");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+function toggleBroadcastMode() {
+  const on = document.getElementById("broadcast-mode")?.checked;
+  document.getElementById("broadcast-panel")?.classList.toggle("hidden", !on);
+}
+async function sendBroadcastNow() {
+  const message = document.getElementById("message-text")?.value.trim();
+  const raw = document.getElementById("broadcast-recipients")?.value || "";
+  const ids = raw.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (!message) { toastT("toast.emptyMessage", "error"); return; }
+  if (!ids.length) { toastT("toast.broadcastRecipients", "error"); return; }
+  const r = await api(withAccountId("/api/messages/broadcast"), {
+    method: "POST",
+    body: JSON.stringify({ platform: currentPlatform, chat_ids: ids, message }),
+  });
+  toastT("toast.broadcastDone", "success", { sent: r.sent, failed: r.failed });
+}
+
+async function uploadBroadcastCsv(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const message = document.getElementById("message-text")?.value.trim();
+  if (!message) { toastT("toast.emptyMessage", "error"); return; }
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const r = await fetch(withAccountId(`/api/messages/broadcast/csv?platform=${currentPlatform}&default_message=${encodeURIComponent(message)}`), {
+      method: "POST",
+      body: fd,
+      credentials: "same-origin",
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || "CSV failed");
+    toastT("toast.broadcastDone", "success", { sent: data.sent, failed: data.failed });
+  } catch (e) { toast(e.message, "error"); }
+  event.target.value = "";
+}
+
+async function exportPanelBackup() {
+  window.location.href = "/api/admin/backup";
+  toastT("toast.backupExported", "success");
+}
+
+async function importPanelBackup(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const r = await api("/api/admin/restore", { method: "POST", body: JSON.stringify({ data, merge: true }) });
+    toastT("toast.backupImported", "success", { count: Object.values(r.imported || {}).reduce((a, b) => a + b, 0) });
+    loadStats();
+  } catch (e) { toast(e.message, "error"); }
+  event.target.value = "";
+}
+
+async function loadScheduledCalendar() {
+  const box = document.getElementById("scheduled-calendar");
+  if (!box) return;
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  try {
+    const cal = await api(`/api/scheduled/calendar?month=${month}`);
+    const days = Object.entries(cal.days || {});
+    if (!days.length) {
+      box.innerHTML = `<p class="muted small">${tt("scheduled.calendarEmpty")}</p>`;
+    } else {
+      box.innerHTML = days.map(([day, jobs]) =>
+        `<div class="calendar-day"><strong>${escapeHtml(day)}</strong> <span class="muted">(${jobs.length})</span><ul>${jobs.map((j) =>
+          `<li>${escapeHtml(j.chat_name)} · ${escapeHtml(j.status)}</li>`).join("")}</ul></div>`
+      ).join("");
+    }
+    box.classList.remove("hidden");
+  } catch (e) { toast(e.message, "error"); }
+}
+
+function exportScheduledJson() {
+  window.location.href = "/api/scheduled/export";
+  toastT("toast.exportStarted", "info");
+}
+
+function setReplyTo(id, preview) {
+  replyToMessage = { id, preview };
+  const bar = document.getElementById("reply-preview-bar");
+  const text = document.getElementById("reply-preview-text");
+  if (bar) bar.classList.remove("hidden");
+  if (text) text.textContent = preview || `#${id}`;
+  document.getElementById("chat-reply")?.focus();
+}
+function cancelReply() {
+  replyToMessage = null;
+  document.getElementById("reply-preview-bar")?.classList.add("hidden");
+}
+async function copyMessageText(text) {
+  try {
+    await navigator.clipboard.writeText(text || "");
+    toastT("toast.copied", "success");
+  } catch (_) { toastT("toast.copyFailed", "error"); }
+}
+
+async function duplicateScheduledJob(id) {
+  try {
+    await api(`/api/scheduled/${id}/duplicate`, { method: "POST" });
+    toastT("toast.scheduleDuplicated", "success");
+    loadScheduled();
+    loadStats();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function editTemplate(id) {
+  const templates = await api("/api/templates");
+  const t = templates.find((x) => x.id === id);
+  if (!t) return;
+  const title = prompt(tt("templates.editTitle"), t.title);
+  if (title === null) return;
+  const body = prompt(tt("templates.body"), t.message_text);
+  if (body === null) return;
+  await api(`/api/templates/${id}`, { method: "PUT", body: JSON.stringify({ title: title.trim(), message_text: body.trim() }) });
+  toastT("toast.templateUpdated", "success");
+  loadTemplates();
+}
+
+async function loadAutoReplies() {
+  const box = document.getElementById("auto-reply-list");
+  if (!box) return;
+  try {
+    const rules = await api(`/api/auto-replies?platform=${currentPlatform}`);
+    if (!rules.length) { box.innerHTML = `<p class="muted small">${tt("autoReply.empty")}</p>`; return; }
+    box.innerHTML = rules.map((r) => `
+      <div class="auto-reply-item">
+        <strong>${escapeHtml(r.keyword)}</strong>
+        <span class="muted small">${escapeHtml(r.match_mode)} · ${r.cooldown_minutes}m</span>
+        <p>${escapeHtml(r.response_text.slice(0, 120))}</p>
+        <button class="btn small secondary" onclick="editAutoReplyRule(${r.id})">${tt("autoReply.edit")}</button>
+        <button class="btn small danger" onclick="deleteAutoReplyRule(${r.id})">${tt("common.delete")}</button>
+      </div>`).join("");
+  } catch (e) { box.innerHTML = `<p class="muted">${escapeHtml(e.message)}</p>`; }
+}
+async function saveAutoReplyRule() {
+  const keyword = document.getElementById("auto-reply-keyword")?.value.trim();
+  const response_text = document.getElementById("auto-reply-response")?.value.trim();
+  const match_mode = document.getElementById("auto-reply-mode")?.value || "contains";
+  if (!keyword || !response_text) { toastT("toast.autoReplyRequired", "error"); return; }
+  await api("/api/auto-replies", {
+    method: "POST",
+    body: JSON.stringify({ platform: currentPlatform, keyword, response_text, cooldown_minutes: 60, match_mode }),
+  });
+  document.getElementById("auto-reply-keyword").value = "";
+  document.getElementById("auto-reply-response").value = "";
+  toastT("toast.autoReplySaved", "success");
+  loadAutoReplies();
+}
+async function editAutoReplyRule(id) {
+  const rules = await api(`/api/auto-replies?platform=${currentPlatform}`);
+  const r = rules.find((x) => x.id === id);
+  if (!r) return;
+  const keyword = prompt(tt("autoReply.keyword"), r.keyword);
+  if (keyword === null) return;
+  const response_text = prompt(tt("autoReply.response"), r.response_text);
+  if (response_text === null) return;
+  await api(`/api/auto-replies/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ keyword: keyword.trim(), response_text: response_text.trim(), match_mode: r.match_mode }),
+  });
+  toastT("toast.autoReplyUpdated", "success");
+  loadAutoReplies();
+}
+async function deleteAutoReplyRule(id) {
+  if (!confirm(tt("confirm.deleteGeneric"))) return;
+  await api(`/api/auto-replies/${id}`, { method: "DELETE" });
+  loadAutoReplies();
+}
 
 // ─── Scheduled list ──────────────────────────────────
 async function loadScheduled() {
@@ -2722,8 +3184,10 @@ async function loadScheduled() {
         </div>
         ${j.error_message ? `<div class="error-box">${icon("alert-triangle", { size: 16 })}<span>${escapeHtml(j.error_message)}</span></div>` : ""}
         <div class="item-actions">
+          ${isActive ? `<button class="btn small ghost" onclick="editScheduledJob(${j.id})">${btnWithIcon("pencil", tt("scheduled.edit"))}</button>` : ""}
+          ${isActive ? `<button class="btn small ghost" onclick="duplicateScheduledJob(${j.id})">${btnWithIcon("shuffle", tt("scheduled.duplicate"))}</button>` : ""}
           ${isActive ? `<button class="btn small ghost" onclick="sendNow(${j.id})">${btnWithIcon("rocket", tt("scheduled.sendNowBtn"))}</button>` : ""}
-          ${j.status === "failed" ? `<button class="btn small secondary" onclick="retryJob(${j.id})">${btnWithIcon("refresh-cw", "Tekrar dene")}</button>` : ""}
+          ${j.status === "failed" ? `<button class="btn small secondary" onclick="retryJob(${j.id})">${btnWithIcon("refresh-cw", tt("scheduled.retryBtn"))}</button>` : ""}
           ${isActive ? `<button class="btn small danger" onclick="cancelJob(${j.id})">${tt("common.cancel")}</button>` : ""}
         </div>
       </div>`;
@@ -2762,6 +3226,49 @@ async function cancelJob(id) {
   toastT("toast.cancelledJob", "info"); loadScheduled(); loadStats();
 }
 
+async function editScheduledJob(id) {
+  try {
+    const jobs = await api("/api/scheduled");
+    const job = jobs.find((j) => j.id === id);
+    if (!job) { toastT("error.message.notFound", "error"); return; }
+    if (!job.is_active || (job.status !== "pending" && job.status !== "failed")) {
+      toastT("error.message.notEditable", "error");
+      return;
+    }
+    currentPlatform = job.platform || currentPlatform;
+    openScheduleModal({ editJob: job });
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function exportActiveChat(format) {
+  if (!activeThreadChat?.id) {
+    toastT("empty.selectChat", "error");
+    return;
+  }
+  const path = withAccountId(
+    `/api/messages/export/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}?format=${format}`,
+  );
+  try {
+    const res = await fetch(path, { credentials: "same-origin" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(translateError(data.detail || data.error || res.statusText));
+    }
+    const blob = await res.blob();
+    const disp = res.headers.get("Content-Disposition") || "";
+    const match = disp.match(/filename="([^"]+)"/);
+    const filename = match?.[1] || `chat-export.${format}`;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toastT("toast.exportStarted", "success");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
 // ─── Templates ───────────────────────────────────────
 async function loadTemplates() {
   try {
@@ -2772,8 +3279,9 @@ async function loadTemplates() {
     if (!templates.length) { list.innerHTML = `<p class="muted">${tt("templates.noneShort")}</p>`; return; }
     list.innerHTML = templates.map((t) => `
       <div class="template-item">
-        <header><strong>${escapeHtml(t.title)}</strong>
+        <header><strong>${escapeHtml(t.title)}</strong> <span class="badge muted">${escapeHtml(t.category || "general")}</span>
           <div><button class="btn small ghost" onclick="useTemplate(${t.id})">${tt("common.use")}</button>
+          <button class="btn small ghost" onclick="editTemplate(${t.id})">${tt("templates.edit")}</button>
           <button class="btn small danger" onclick="deleteTemplate(${t.id})">${tt("common.delete")}</button></div>
         </header>
         <p>${escapeHtml(t.message_text.slice(0,120))}</p>
@@ -2784,8 +3292,9 @@ async function loadTemplates() {
 async function saveTemplate() {
   const title = document.getElementById("template-title").value.trim();
   const message_text = document.getElementById("template-text").value.trim();
+  const category = document.getElementById("template-category")?.value.trim() || "general";
   if (!title || !message_text) { toastT("toast.titleRequired", "error"); return; }
-  await api("/api/templates", { method: "POST", body: JSON.stringify({ title, message_text }) });
+  await api("/api/templates", { method: "POST", body: JSON.stringify({ title, message_text, category }) });
   document.getElementById("template-title").value = "";
   document.getElementById("template-text").value = "";
   toastT("toast.templateSaved", "success");
@@ -2857,6 +3366,11 @@ async function init() {
   } catch (_) {}
   await checkAuthStatus(getAccountId());
   await loadStats();
+  const composeDraft = loadDraft("compose-message");
+  if (composeDraft && document.getElementById("message-text")) {
+    document.getElementById("message-text").value = composeDraft;
+    document.getElementById("char-count").textContent = composeDraft.length;
+  }
   await loadScheduled();
   await loadTemplates();
   renderAccountSwitcher();
@@ -2876,6 +3390,7 @@ document.addEventListener("keydown", (e) => {
     closeScheduleModal();
     closeAddAccountModal();
     closeRenameChatModal();
+    closeNotesModal();
   }
   if (e.target.matches("input, textarea, select")) return;
   if (e.key === "1" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); setPlatform("telegram"); }

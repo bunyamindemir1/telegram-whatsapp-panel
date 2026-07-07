@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
+
+from sqlalchemy import select
 
 from app import error_codes as E
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -20,6 +22,8 @@ from app.scheduler_service import schedule_message
 from app.serializers import serialize_job
 from app.utils.datetime_utils import from_client_datetime, utc_now
 
+from app.auto_reply_service import create_auto_reply_rule, delete_auto_reply_rule, list_auto_reply_rules
+from app.follow_up_service import create_follow_up, list_follow_ups
 from app.webhook_service import EVENT_TYPES, create_webhook, delete_webhook, list_webhooks
 
 router = APIRouter(tags=["API v1"])
@@ -46,6 +50,31 @@ class V1ScheduleRequest(BaseModel):
     chat_type: str = "unknown"
     message_text: str = Field(min_length=1, max_length=4096)
     scheduled_at: datetime
+
+
+class V1BroadcastRequest(BaseModel):
+    platform: str
+    account_id: Optional[int] = None
+    chat_ids: list[str] = Field(min_length=1, max_length=50)
+    message: str = Field(min_length=1, max_length=4096)
+
+
+class V1AutoReplyRequest(BaseModel):
+    platform: str
+    account_id: Optional[int] = None
+    keyword: str = Field(min_length=1, max_length=120)
+    response_text: str = Field(min_length=1, max_length=4096)
+    match_mode: str = "contains"
+    cooldown_minutes: int = Field(default=60, ge=1, le=1440)
+
+
+class V1FollowUpRequest(BaseModel):
+    platform: str
+    account_id: Optional[int] = None
+    chat_id: str
+    chat_name: str = ""
+    reminder_text: str = Field(min_length=1, max_length=4096)
+    wait_hours: int = Field(default=24, ge=1, le=168)
 
 
 class WebhookCreateRequest(BaseModel):
@@ -177,6 +206,89 @@ async def v1_schedule(body: V1ScheduleRequest):
         await session.commit()
         await session.refresh(job)
     return serialize_job(job)
+
+
+@router.get("/scheduled", dependencies=[Depends(require_v1_auth)])
+async def v1_list_scheduled(
+    platform: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+):
+    async with async_session() as session:
+        query = select(ScheduledMessage).order_by(ScheduledMessage.scheduled_at.desc())
+        if platform:
+            validate_platform(platform)
+            query = query.where(ScheduledMessage.platform == platform)
+        if status:
+            query = query.where(ScheduledMessage.status == status)
+        jobs = (await session.execute(query)).scalars().all()
+    return [serialize_job(j) for j in jobs]
+
+
+@router.post("/messages/broadcast", dependencies=[Depends(require_v1_auth)])
+async def v1_broadcast(body: V1BroadcastRequest):
+    validate_platform(body.platform)
+    aid = await resolve_account_id(body.platform, body.account_id)
+    sent = 0
+    errors: list[dict] = []
+    for chat_id in body.chat_ids[:50]:
+        try:
+            await send_platform_message(body.platform, chat_id, body.message, account_id=aid)
+            sent += 1
+        except Exception as exc:
+            errors.append({"chat_id": chat_id, "error": str(exc)})
+    return {"ok": not errors, "sent": sent, "failed": len(errors), "errors": errors}
+
+
+@router.get("/auto-replies", dependencies=[Depends(require_v1_auth)])
+async def v1_list_auto_replies(platform: Optional[str] = Query(None)):
+    if platform:
+        validate_platform(platform)
+    return await list_auto_reply_rules(platform)
+
+
+@router.post("/auto-replies", dependencies=[Depends(require_v1_auth)])
+async def v1_create_auto_reply(body: V1AutoReplyRequest):
+    validate_platform(body.platform)
+    aid = await resolve_account_id(body.platform, body.account_id)
+    return await create_auto_reply_rule(
+        platform=body.platform,
+        keyword=body.keyword,
+        response_text=body.response_text,
+        account_id=aid,
+        match_mode=body.match_mode,
+        cooldown_minutes=body.cooldown_minutes,
+    )
+
+
+@router.delete("/auto-replies/{rule_id}", dependencies=[Depends(require_v1_auth)])
+async def v1_delete_auto_reply(rule_id: int):
+    if not await delete_auto_reply_rule(rule_id):
+        raise HTTPException(status_code=404, detail=E.API_KEY_NOT_FOUND)
+    return {"ok": True}
+
+
+@router.post("/follow-ups", dependencies=[Depends(require_v1_auth)])
+async def v1_create_follow_up(body: V1FollowUpRequest):
+    validate_platform(body.platform)
+    aid = await resolve_account_id(body.platform, body.account_id)
+    return await create_follow_up(
+        platform=body.platform,
+        chat_id=body.chat_id,
+        reminder_text=body.reminder_text,
+        wait_hours=body.wait_hours,
+        account_id=aid,
+        chat_name=body.chat_name,
+    )
+
+
+@router.get("/follow-ups", dependencies=[Depends(require_v1_auth)])
+async def v1_list_follow_ups_endpoint(
+    platform: Optional[str] = Query(None),
+    status: str = Query("pending"),
+):
+    if platform:
+        validate_platform(platform)
+    return await list_follow_ups(platform, status=status)
 
 
 @router.get("/keys", dependencies=[Depends(check_panel_auth)])

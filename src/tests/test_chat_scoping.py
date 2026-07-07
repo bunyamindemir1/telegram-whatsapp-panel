@@ -259,7 +259,7 @@ class TestChatListAPI:
     @pytest.mark.asyncio
     async def test_send_message_uses_query_account_id(self, api_client, scoped_session):
         tg2 = await create_account(Platform.TELEGRAM.value, "A2")
-        with patch("app.main.telegram_service.send_message", new_callable=AsyncMock) as mock_send:
+        with patch("app.main.send_platform_message", new_callable=AsyncMock) as mock_send:
             mock_send.return_value = {"message_id": 1}
             res = await api_client.post(
                 f"/api/messages/send?account_id={tg2['id']}",

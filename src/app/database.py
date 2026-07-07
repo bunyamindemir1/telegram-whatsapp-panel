@@ -108,6 +108,18 @@ async def _migrate(conn) -> None:
         await conn.execute(text(
             "ALTER TABLE conversations ADD COLUMN chat_name_custom INTEGER DEFAULT 0"
         ))
+    if "is_pinned" not in conv_cols:
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN is_pinned INTEGER DEFAULT 0"))
+    if "pinned_at" not in conv_cols:
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN pinned_at DATETIME"))
+    if "notes" not in conv_cols:
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN notes TEXT"))
+    if "tags_json" not in conv_cols:
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN tags_json TEXT DEFAULT '[]'"))
+    if "is_muted" not in conv_cols:
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN is_muted INTEGER DEFAULT 0"))
+    if "snoozed_until" not in conv_cols:
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN snoozed_until DATETIME"))
 
     result = await conn.execute(text("PRAGMA table_info(chat_messages)"))
     msg_cols = {row[1] for row in result.fetchall()}
@@ -119,6 +131,7 @@ async def _migrate(conn) -> None:
         ("media_size", "INTEGER"),
         ("caption", "TEXT"),
         ("reply_to_message_id", "TEXT"),
+        ("is_starred", "INTEGER DEFAULT 0"),
     ):
         if col not in msg_cols:
             await conn.execute(text(f"ALTER TABLE chat_messages ADD COLUMN {col} {typedef}"))
@@ -182,6 +195,63 @@ async def _migrate(conn) -> None:
             )
         """))
 
+
+    result = await conn.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table' AND name='auto_reply_rules'")
+    )
+    if not result.fetchone():
+        await conn.execute(text("""
+            CREATE TABLE auto_reply_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER,
+                platform TEXT NOT NULL,
+                keyword TEXT NOT NULL,
+                response_text TEXT NOT NULL,
+                match_mode TEXT DEFAULT 'contains',
+                cooldown_minutes INTEGER DEFAULT 60,
+                is_active INTEGER DEFAULT 1,
+                last_triggered_at DATETIME,
+                created_at DATETIME
+            )
+        """))
+
+    tmpl = await conn.execute(text("PRAGMA table_info(message_templates)"))
+    tmpl_cols = {row[1] for row in tmpl.fetchall()}
+    if "updated_at" not in tmpl_cols:
+        await conn.execute(text("ALTER TABLE message_templates ADD COLUMN updated_at DATETIME"))
+    if "category" not in tmpl_cols:
+        await conn.execute(text("ALTER TABLE message_templates ADD COLUMN category TEXT DEFAULT 'general'"))
+
+    for table, ddl in (
+        ("follow_up_reminders", """
+            CREATE TABLE follow_up_reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER,
+                platform TEXT NOT NULL,
+                chat_id TEXT NOT NULL,
+                chat_name TEXT DEFAULT '',
+                wait_hours INTEGER DEFAULT 24,
+                reminder_text TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                due_at DATETIME NOT NULL,
+                anchor_at DATETIME NOT NULL,
+                created_at DATETIME
+            )
+        """),
+        ("activity_logs", """
+            CREATE TABLE activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action TEXT NOT NULL,
+                detail_json TEXT DEFAULT '{}',
+                created_at DATETIME
+            )
+        """),
+    ):
+        result = await conn.execute(
+            text(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
+        )
+        if not result.fetchone():
+            await conn.execute(text(ddl))
 
     await _migrate_chat_unique_constraints(conn)
 

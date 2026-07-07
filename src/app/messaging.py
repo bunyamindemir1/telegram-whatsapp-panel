@@ -7,6 +7,7 @@ from app.models import Platform
 from app.outbound_guard import ensure_outbound_allowed, outbound_allowed, simulated_send_result
 from app.realtime import realtime_hub
 from app.telegram_service import telegram_service
+from app.template_engine import build_template_context, render_template
 from app.whatsapp_service import whatsapp_service
 
 
@@ -19,6 +20,7 @@ async def send_platform_message(
     chat_type: str = "unknown",
     allow_simulate: bool = False,
     account_id: Optional[int] = None,
+    reply_to_message_id: Optional[str] = None,
 ) -> dict[str, Any]:
     if not outbound_allowed():
         if allow_simulate:
@@ -26,14 +28,20 @@ async def send_platform_message(
         ensure_outbound_allowed()
 
     aid = await resolve_account_id(platform, account_id)
+    ctx = build_template_context(
+        chat_name=chat_name or chat_id,
+        chat_id=chat_id,
+        platform=platform,
+    )
+    rendered = render_template(message, ctx)
 
     if platform == Platform.WHATSAPP.value:
-        wa_result = await whatsapp_service.send_message(chat_id, message, account_id=aid)
+        wa_result = await whatsapp_service.send_message(chat_id, rendered, account_id=aid)
         saved = await save_message(
             platform="whatsapp",
             chat_id=chat_id,
             message_id=wa_result.get("message_id", str(datetime.utcnow().timestamp())),
-            text=message,
+            text=rendered,
             from_me=True,
             timestamp=datetime.utcnow(),
             chat_name=chat_name or chat_id,
@@ -44,7 +52,12 @@ async def send_platform_message(
         return {"message_id": wa_result.get("message_id"), "saved": saved}
 
     return await telegram_service.send_message(
-        chat_id, message, chat_name, chat_type, account_id=aid
+        chat_id,
+        rendered,
+        chat_name,
+        chat_type,
+        account_id=aid,
+        reply_to_message_id=reply_to_message_id,
     )
 
 

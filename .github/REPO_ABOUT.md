@@ -1,32 +1,26 @@
-# GitHub repository settings (manual)
+# GitHub repository About
 
-Copy these values into **Settings → General** on GitHub.
+Apply with `gh auth login` then:
 
-## Description
+```bash
+./.github/apply-repo-seo.sh
+```
+
+## Description (Türkçe)
 
 ```
-Self-hosted unified inbox for Telegram & WhatsApp — schedule messages, REST API, webhooks, 15 languages. Docker one-command setup.
+Self-hosted Telegram & WhatsApp mesaj paneli — zamanlanmış gönderim, birleşik inbox, REST API & webhook. FastAPI, Telethon, Baileys, Docker.
 ```
 
 ## Website
 
 ```
-https://github.com/bunyamindemir1/telegram-whatsapp-panel#quick-start
+https://github.com/bunyamindemir1/telegram-whatsapp-panel#turkce
 ```
 
 ## Topics
 
 ```
-telegram
-whatsapp
-self-hosted
-unified-inbox
-message-scheduler
-fastapi
-telethon
-baileys
-rest-api
-webhook
-docker
-i18n
+telegram whatsapp message-scheduler self-hosted fastapi telethon baileys
+rest-api webhooks docker messaging automation open-source
 ```

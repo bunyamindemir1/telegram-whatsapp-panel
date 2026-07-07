@@ -130,6 +130,23 @@ class MessageTemplate(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     message_text: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(String(64), default="general")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class AutoReplyRule(Base):
+    __tablename__ = "auto_reply_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False)
+    keyword: Mapped[str] = mapped_column(String(120), nullable=False)
+    response_text: Mapped[str] = mapped_column(Text, nullable=False)
+    match_mode: Mapped[str] = mapped_column(String(16), default="contains")
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_triggered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -147,6 +164,12 @@ class Conversation(Base):
     last_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     unread_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    pinned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tags_json: Mapped[Optional[str]] = mapped_column(Text, default="[]")
+    is_muted: Mapped[bool] = mapped_column(Boolean, default=False)
+    snoozed_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -177,5 +200,31 @@ class ChatMessage(Base):
     media_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     caption: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reply_to_message_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    is_starred: Mapped[bool] = mapped_column(Boolean, default=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FollowUpReminder(Base):
+    __tablename__ = "follow_up_reminders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False)
+    chat_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    chat_name: Mapped[str] = mapped_column(String(255), default="")
+    wait_hours: Mapped[int] = mapped_column(Integer, default=24)
+    reminder_text: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    due_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    anchor_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail_json: Mapped[Optional[str]] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
