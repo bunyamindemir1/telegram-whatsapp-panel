@@ -172,10 +172,6 @@ async def try_auto_reply(
                         continue
                 except ValueError:
                     pass
-            chat_cooldowns[chat_id] = now.isoformat()
-            db_rule.chat_cooldowns_json = json.dumps(chat_cooldowns)
-            db_rule.last_triggered_at = now
-            await session.commit()
 
         try:
             sent = await send_platform_message(
@@ -186,6 +182,14 @@ async def try_auto_reply(
                 chat_type=chat_type,
                 account_id=account_id,
             )
+            async with async_session() as session:
+                db_rule = await session.get(AutoReplyRule, rule.id)
+                if db_rule:
+                    chat_cooldowns = _load_chat_cooldowns(getattr(db_rule, "chat_cooldowns_json", None))
+                    chat_cooldowns[chat_id] = now.isoformat()
+                    db_rule.chat_cooldowns_json = json.dumps(chat_cooldowns)
+                    db_rule.last_triggered_at = now
+                    await session.commit()
             return {"rule_id": rule.id, "sent": sent}
         except Exception as exc:
             logger.warning("Auto-reply failed rule %s: %s", rule.id, exc)

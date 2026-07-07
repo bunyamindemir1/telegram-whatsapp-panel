@@ -74,3 +74,27 @@ class TestMessageStore:
         await save_message("telegram", "1", "m2", "Naber", False, ts, chat_name="Ali")
         convs = await list_conversations("telegram")
         assert convs[0]["unread_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_sync_updates_unread_count(self, patch_store_session, store_engine):
+        from sqlalchemy import select
+
+        from app.message_store import sync_conversations_from_chats
+
+        await sync_conversations_from_chats(
+            [{"jid": "wa@test.net", "name": "Test", "type": "private", "unread_count": 3}],
+            "whatsapp",
+            1,
+        )
+        await sync_conversations_from_chats(
+            [{"jid": "wa@test.net", "name": "Test", "type": "private", "unread_count": 7}],
+            "whatsapp",
+            1,
+        )
+        factory = async_sessionmaker(store_engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            conv = await session.scalar(
+                select(Conversation).where(Conversation.chat_id == "wa@test.net")
+            )
+            assert conv is not None
+            assert conv.unread_count == 7

@@ -210,6 +210,17 @@ async def process_due_follow_ups() -> int:
     return triggered
 
 
+async def reset_stale_processing_follow_ups() -> int:
+    async with async_session() as session:
+        result = await session.execute(
+            update(FollowUpReminder)
+            .where(FollowUpReminder.status == "processing")
+            .values(status="pending")
+        )
+        await session.commit()
+        return result.rowcount or 0
+
+
 def register_follow_up_checker(scheduler) -> None:
     if scheduler.get_job("follow_up_checker"):
         return

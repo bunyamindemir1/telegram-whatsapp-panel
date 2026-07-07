@@ -431,6 +431,7 @@ async def sync_conversations_from_chats(
                     "chat_type": stmt.excluded.chat_type,
                     "last_message": stmt.excluded.last_message,
                     "last_message_at": stmt.excluded.last_message_at,
+                    "unread_count": stmt.excluded.unread_count,
                     "updated_at": stmt.excluded.updated_at,
                 },
             )

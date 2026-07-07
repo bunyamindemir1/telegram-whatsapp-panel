@@ -134,7 +134,7 @@ async def _execute_job(job_id: int) -> None:
                 now = utc_now()
                 job.last_run_at = now
                 if result.get("dry_run"):
-                    job.error_message = "[TEST] Simüle edildi — mesaj gönderilmedi"
+                    job.error_message = None
                 else:
                     job.error_message = None
                     await _dispatch_scheduled_webhook(
@@ -233,8 +233,9 @@ async def retry_job(job_id: int) -> None:
 
 
 async def load_pending_jobs() -> None:
-    from app.follow_up_service import register_follow_up_checker
+    from app.follow_up_service import register_follow_up_checker, reset_stale_processing_follow_ups
 
+    await reset_stale_processing_follow_ups()
     register_follow_up_checker(scheduler)
     async with async_session() as session:
         result = await session.execute(

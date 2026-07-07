@@ -556,10 +556,18 @@ function formatTs(ts) {
   return new Date(ts * 1000).toLocaleString(loc, { timeZone: TZ, hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
 }
 
-// Türkiye saati datetime-local → ISO with +03:00 offset
+// datetime-local → ISO with the browser's local timezone offset
 function localDateTimeToISO(localStr) {
   if (!localStr) return null;
-  return localStr + ":00+03:00";
+  const d = new Date(localStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? "+" : "-";
+  const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, "0");
+  const hh = pad(off / 60);
+  const mm = pad(off % 60);
+  const [datePart, timePart = "00:00"] = localStr.split("T");
+  return `${datePart}T${timePart}:00${sign}${hh}:${mm}`;
 }
 
 // ─── Platform ────────────────────────────────────────
@@ -3143,34 +3151,47 @@ async function saveAutoReplyRule() {
   const response_text = document.getElementById("auto-reply-response")?.value.trim();
   const match_mode = document.getElementById("auto-reply-mode")?.value || "contains";
   if (!keyword || !response_text) { toastT("toast.autoReplyRequired", "error"); return; }
-  await api("/api/auto-replies", {
-    method: "POST",
-    body: JSON.stringify({ platform: currentPlatform, keyword, response_text, cooldown_minutes: 60, match_mode }),
-  });
-  document.getElementById("auto-reply-keyword").value = "";
-  document.getElementById("auto-reply-response").value = "";
-  toastT("toast.autoReplySaved", "success");
-  loadAutoReplies();
+  try {
+    await api("/api/auto-replies", {
+      method: "POST",
+      body: JSON.stringify({
+        platform: currentPlatform,
+        account_id: getAccountId(),
+        keyword,
+        response_text,
+        cooldown_minutes: 60,
+        match_mode,
+      }),
+    });
+    document.getElementById("auto-reply-keyword").value = "";
+    document.getElementById("auto-reply-response").value = "";
+    toastT("toast.autoReplySaved", "success");
+    loadAutoReplies();
+  } catch (e) { toast(e.message, "error"); }
 }
 async function editAutoReplyRule(id) {
-  const rules = await api(`/api/auto-replies?platform=${currentPlatform}`);
-  const r = rules.find((x) => x.id === id);
-  if (!r) return;
-  const keyword = prompt(tt("autoReply.keyword"), r.keyword);
-  if (keyword === null) return;
-  const response_text = prompt(tt("autoReply.response"), r.response_text);
-  if (response_text === null) return;
-  await api(`/api/auto-replies/${id}`, {
-    method: "PUT",
-    body: JSON.stringify({ keyword: keyword.trim(), response_text: response_text.trim(), match_mode: r.match_mode }),
-  });
-  toastT("toast.autoReplyUpdated", "success");
-  loadAutoReplies();
+  try {
+    const rules = await api(`/api/auto-replies?platform=${currentPlatform}`);
+    const r = rules.find((x) => x.id === id);
+    if (!r) return;
+    const keyword = prompt(tt("autoReply.keyword"), r.keyword);
+    if (keyword === null) return;
+    const response_text = prompt(tt("autoReply.response"), r.response_text);
+    if (response_text === null) return;
+    await api(`/api/auto-replies/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ keyword: keyword.trim(), response_text: response_text.trim(), match_mode: r.match_mode }),
+    });
+    toastT("toast.autoReplyUpdated", "success");
+    loadAutoReplies();
+  } catch (e) { toast(e.message, "error"); }
 }
 async function deleteAutoReplyRule(id) {
   if (!confirm(tt("confirm.deleteGeneric"))) return;
-  await api(`/api/auto-replies/${id}`, { method: "DELETE" });
-  loadAutoReplies();
+  try {
+    await api(`/api/auto-replies/${id}`, { method: "DELETE" });
+    loadAutoReplies();
+  } catch (e) { toast(e.message, "error"); }
 }
 
 // ─── Scheduled list ──────────────────────────────────
@@ -3255,8 +3276,12 @@ async function retryJob(id) {
 }
 async function cancelJob(id) {
   if (!confirm(tt("confirm.cancelJob"))) return;
-  await api(`/api/scheduled/${id}`, { method: "DELETE" });
-  toastT("toast.cancelledJob", "info"); loadScheduled(); loadStats();
+  try {
+    await api(`/api/scheduled/${id}`, { method: "DELETE" });
+    toastT("toast.cancelledJob", "info");
+    loadScheduled();
+    loadStats();
+  } catch (e) { toast(e.message, "error"); }
 }
 
 async function editScheduledJob(id) {
@@ -3327,11 +3352,13 @@ async function saveTemplate() {
   const message_text = document.getElementById("template-text").value.trim();
   const category = document.getElementById("template-category")?.value.trim() || "general";
   if (!title || !message_text) { toastT("toast.titleRequired", "error"); return; }
-  await api("/api/templates", { method: "POST", body: JSON.stringify({ title, message_text, category }) });
-  document.getElementById("template-title").value = "";
-  document.getElementById("template-text").value = "";
-  toastT("toast.templateSaved", "success");
-  loadTemplates();
+  try {
+    await api("/api/templates", { method: "POST", body: JSON.stringify({ title, message_text, category }) });
+    document.getElementById("template-title").value = "";
+    document.getElementById("template-text").value = "";
+    toastT("toast.templateSaved", "success");
+    loadTemplates();
+  } catch (e) { toast(e.message, "error"); }
 }
 
 async function useTemplate(id) {
@@ -3342,8 +3369,10 @@ async function useTemplate(id) {
 
 async function deleteTemplate(id) {
   if (!confirm(tt("confirm.deleteGeneric"))) return;
-  await api(`/api/templates/${id}`, { method: "DELETE" });
-  loadTemplates();
+  try {
+    await api(`/api/templates/${id}`, { method: "DELETE" });
+    loadTemplates();
+  } catch (e) { toast(e.message, "error"); }
 }
 
 document.getElementById("template-select")?.addEventListener("change", async (e) => {

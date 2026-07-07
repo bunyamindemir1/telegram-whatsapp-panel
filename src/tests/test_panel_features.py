@@ -427,6 +427,37 @@ async def test_follow_up_dedup_per_chat(panel_client):
 
 
 @pytest.mark.asyncio
+async def test_reset_stale_processing_follow_ups(panel_client, test_engine):
+    from app.follow_up_service import reset_stale_processing_follow_ups
+    from app.models import FollowUpReminder
+
+    factory = make_session_factory(test_engine)
+    import app.follow_up_service as fus
+    fus.async_session = factory
+
+    async with factory() as session:
+        session.add(
+            FollowUpReminder(
+                platform="telegram",
+                chat_id="stale",
+                chat_name="Stale",
+                wait_hours=24,
+                reminder_text="Hi",
+                status="processing",
+                due_at=datetime.utcnow(),
+                anchor_at=datetime.utcnow(),
+            )
+        )
+        await session.commit()
+
+    reset = await reset_stale_processing_follow_ups()
+    assert reset == 1
+
+    listed = await panel_client.get("/api/follow-ups?platform=telegram&status=pending")
+    assert any(f["chat_id"] == "stale" for f in listed.json())
+
+
+@pytest.mark.asyncio
 async def test_send_with_reply_to(panel_client):
     with patch("app.main.send_platform_message", new_callable=AsyncMock) as mock_send:
         mock_send.return_value = {"message_id": "42"}

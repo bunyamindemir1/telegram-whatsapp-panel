@@ -1220,7 +1220,7 @@ async def internal_sync_whatsapp(request: Request, body: WhatsAppSyncRequest):
     if body.chats and (body.offset or 0) == 0:
         await sync_conversations_from_chats(
             [{"jid": c.jid, "name": c.name, "type": c.type, "last_message": c.last_message,
-              "last_timestamp": c.last_timestamp, "unread_count": 0} for c in body.chats],
+              "last_timestamp": c.last_timestamp, "unread_count": c.unread_count or 0} for c in body.chats],
             Platform.WHATSAPP.value,
             panel_account_id,
         )
