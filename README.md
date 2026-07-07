@@ -3,7 +3,7 @@
 > **Self-hosted unified inbox for Telegram & WhatsApp** — schedule messages, manage chats, REST API, webhooks, 15 languages. Runs on your server with one-command Docker setup.
 
 [![CI](https://github.com/bunyamindemir1/telegram-whatsapp-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/bunyamindemir1/telegram-whatsapp-panel/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](src/LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](src/docs/QUICKSTART.md)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](src/config/requirements.txt)
 [![Languages](https://img.shields.io/badge/languages-15-8B5CF6)](src/docs/I18N.md)
@@ -173,17 +173,17 @@ Full API reference: [src/docs/API.md](src/docs/API.md)
 ```
 telegram-whatsapp-panel/
 ├── README.md
-├── LICENSE
-├── Makefile
-├── docker-compose.yml
-└── src/                  ← all source code lives here
-    ├── app/              FastAPI backend
-    ├── config/           requirements, pytest
-    ├── docker/           Dockerfile
-    ├── docs/             guides & screenshots
-    ├── locales/          15 languages
-    ├── scripts/          setup, install, tools
-    ├── tests/            pytest + E2E
+├── Makefile          ← thin wrapper (make setup, make test, …)
+└── src/              ← everything else
+    ├── LICENSE
+    ├── Makefile
+    ├── app/          FastAPI backend
+    ├── config/       requirements, pytest
+    ├── docker/       Dockerfile + compose.yml
+    ├── docs/         guides & screenshots
+    ├── locales/      15 languages
+    ├── scripts/      setup, install, tools
+    ├── tests/        pytest + E2E
     └── whatsapp-bridge/  Baileys service
 ```
 
@@ -205,7 +205,7 @@ make preflight  # pre-publish checks
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 Message Panel Contributors
+[MIT](src/LICENSE) — Copyright (c) 2026 Message Panel Contributors
 
 ---
 

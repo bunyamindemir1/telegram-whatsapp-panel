@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
+from app import error_codes as E
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
@@ -148,7 +149,7 @@ async def v1_schedule(body: V1ScheduleRequest):
     aid = await resolve_account_id(body.platform, body.account_id)
     scheduled_at = from_client_datetime(body.scheduled_at)
     if scheduled_at <= utc_now():
-        raise HTTPException(status_code=400, detail="Zamanlanmış tarih gelecekte olmalı")
+        raise HTTPException(status_code=400, detail=E.SCHEDULE_FUTURE_REQUIRED)
 
     job = ScheduledMessage(
         platform=body.platform,
@@ -199,7 +200,7 @@ async def v1_create_key(body: ApiKeyCreateRequest, request: Request):
 @router.delete("/keys/{key_id}", dependencies=[Depends(check_panel_auth)])
 async def v1_revoke_key(key_id: int):
     if not await revoke_api_key(key_id):
-        raise HTTPException(status_code=404, detail="Anahtar bulunamadı")
+        raise HTTPException(status_code=404, detail=E.API_KEY_NOT_FOUND)
     return {"ok": True}
 
 
@@ -222,5 +223,5 @@ async def v1_create_webhook(body: WebhookCreateRequest):
 @router.delete("/webhooks/{webhook_id}", dependencies=[Depends(check_panel_auth)])
 async def v1_delete_webhook(webhook_id: int):
     if not await delete_webhook(webhook_id):
-        raise HTTPException(status_code=404, detail="Webhook bulunamadı")
+        raise HTTPException(status_code=404, detail=E.WEBHOOK_NOT_FOUND)
     return {"ok": True}

@@ -19,6 +19,26 @@ function tt(key, vars) {
   return typeof t === "function" ? t(key, vars) : key;
 }
 
+function translateError(detail, extraVars) {
+  if (!detail) return tt("error.generic");
+  if (typeof detail === "object" && detail !== null) {
+    const code = detail.code || detail.error;
+    if (code) {
+      const vars = { ...detail, ...extraVars };
+      delete vars.code;
+      delete vars.error;
+      return tt(code, vars);
+    }
+  }
+  const msg = String(detail);
+  const translated = tt(msg, extraVars);
+  return translated !== msg ? translated : msg;
+}
+
+function userLocale() {
+  return (typeof getLocale === "function" ? getLocale() : null) || window.__LOCALE__ || "en";
+}
+
 function buildPlatformMeta() {
   return {
     telegram: {
@@ -112,7 +132,42 @@ let countdownTimer = null;
 let qrPollTimer = null;
 let ws = null;
 let wsReconnectTimer = null;
+let appInitialized = false;
 let connectionStates = { telegram: { 1: "disconnected" }, whatsapp: { 1: "disconnected" } };
+const tabLoadTimes = {};
+
+function stopBackgroundTimers() {
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  if (wsReconnectTimer) { clearInterval(wsReconnectTimer); wsReconnectTimer = null; }
+  if (qrPollTimer) { clearInterval(qrPollTimer); qrPollTimer = null; }
+}
+
+function getUserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch (_) {
+    return "UTC";
+  }
+}
+
+function localeNumber(n) {
+  const loc = window.__LOCALE__ || "en";
+  try { return Number(n).toLocaleString(loc); } catch (_) { return String(n); }
+}
+
+function formatCountdownRemaining(diff) {
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const sec = Math.floor((diff % 60000) / 1000);
+  const parts = [];
+  if (h) parts.push(tt("countdown.hours", { n: h }));
+  parts.push(tt("countdown.minutes", { n: m }));
+  parts.push(tt("countdown.seconds", { n: sec }));
+  return tt("countdown.remaining", { time: parts.join("") });
+}
+
+const TZ = getUserTimezone();
 
 function getAccountId(platform = currentPlatform) {
   return currentAccountId[platform] || 1;
@@ -169,7 +224,7 @@ function connectionBadgeHtml(st) {
   return statusDotHtml(st, labels[st] || connectionStatusText(st));
 }
 
-const TZ = "Europe/Istanbul";
+
 let PLATFORM_LABELS = { telegram: tt("platform.telegram"), whatsapp: tt("platform.whatsapp") };
 
 function platformIconHtml(platform, size = 20) {
@@ -375,13 +430,25 @@ function closeThreadUI(clearState = true) {
 }
 
 function toggleMobileSidebar() {
-  document.getElementById("sidebar")?.classList.toggle("open");
-  document.getElementById("sidebar-backdrop")?.classList.toggle("hidden");
+  const sidebar = document.getElementById("sidebar");
+  const open = sidebar?.classList.toggle("open");
+  document.getElementById("sidebar-backdrop")?.classList.toggle("hidden", !open);
+  document.body.classList.toggle("sidebar-open", !!open);
 }
 
 function closeMobileSidebar() {
   document.getElementById("sidebar")?.classList.remove("open");
   document.getElementById("sidebar-backdrop")?.classList.add("hidden");
+  document.body.classList.remove("sidebar-open");
+}
+
+function shouldRefreshTab(tab, ttlMs = 15000) {
+  const now = Date.now();
+  if (!tabLoadTimes[tab] || now - tabLoadTimes[tab] > ttlMs) {
+    tabLoadTimes[tab] = now;
+    return true;
+  }
+  return false;
 }
 
 function mobileNav(tab) {
@@ -393,6 +460,7 @@ function refreshCurrentTab() {
   const active = document.querySelector(".tab.active");
   if (!active) return;
   const tab = active.id.replace("tab-", "");
+  delete tabLoadTimes[tab];
   if (tab === "dashboard") loadStats();
   if (tab === "chats") loadChatThread(true);
   if (tab === "compose") loadChats(true);
@@ -433,7 +501,7 @@ async function api(path, options = {}) {
     ...options,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || data.error || tt("error.generic"));
+  if (!res.ok) throw new Error(translateError(data.detail || data.error));
   return data;
 }
 
@@ -441,14 +509,14 @@ function toast(msg, type = "info") {
   const c = document.getElementById("toast-container");
   const el = document.createElement("div");
   el.className = `toast ${type}`;
-  el.textContent = msg;
+  el.textContent = translateError(msg);
   c.appendChild(el);
   setTimeout(() => el.remove(), 4000);
 }
 
 function showStatus(id, msg, type = "") {
   const el = document.getElementById(id);
-  if (el) { el.textContent = msg; el.className = `status-msg ${type}`; }
+  if (el) { el.textContent = translateError(msg); el.className = `status-msg ${type}`; }
 }
 
 function escapeHtml(s) {
@@ -481,9 +549,9 @@ function switchTab(tab) {
   document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.id === `tab-${tab}`));
   updateMobileChrome(tab);
-  if (tab === "scheduled") loadScheduled();
-  if (tab === "dashboard") loadStats();
-  if (tab === "templates") loadTemplates();
+  if (tab === "scheduled" && shouldRefreshTab("scheduled")) loadScheduled();
+  if (tab === "dashboard" && shouldRefreshTab("dashboard")) loadStats();
+  if (tab === "templates" && shouldRefreshTab("templates")) loadTemplates();
   if (tab === "chats") {
     if (activeThreadChat) {
       setChatThreadOpen(true);
@@ -501,7 +569,9 @@ function switchTab(tab) {
   if (tab === "account") {
     showAccountPanel(currentPlatform);
     checkAuthStatus(panelAccountId || getAccountId());
-    loadDeveloperTools();
+    if (!document.getElementById("developer-card")?.classList.contains("collapsed")) {
+      loadDeveloperTools();
+    }
   }
   updatePlatformChrome();
   closeMobileSidebar();
@@ -643,7 +713,7 @@ function closeAddAccountModal() {
 
 async function confirmAddAccount() {
   const input = document.getElementById("add-account-label");
-  const label = (input?.value || "").trim() || input?.placeholder || "Yeni Hesap";
+  const label = (input?.value || "").trim() || input?.placeholder || tt("account.defaultNewName");
   const btn = document.getElementById("btn-confirm-add-account");
   if (btn) btn.disabled = true;
   try {
@@ -656,7 +726,7 @@ async function confirmAddAccount() {
     await loadAccounts(currentPlatform);
     renderAccountsList(currentPlatform);
     await setAccount(acc.id, { silent: true });
-    toast(`Hesap eklendi: ${acc.label}`, "success");
+    toastT("toast.accountAdded", "success", { name: acc.label });
     switchTab("account");
   } catch (e) {
     toast(e.message, "error");
@@ -922,7 +992,11 @@ async function panelLogin() {
       });
     }
     document.getElementById("login-overlay").classList.add("hidden");
-    init();
+    await init();
+    try {
+      const s = await api("/api/panel/status");
+      if (s.dry_run) toastT("toast.testModeWelcome", "info");
+    } catch (_) {}
   } catch (e) {
     err.textContent = e.message;
     err.classList.remove("hidden");
@@ -935,6 +1009,8 @@ async function panelLogout() {
   try {
     await api("/api/panel/logout", { method: "POST" });
     if (ws) { ws.close(); ws = null; }
+    stopBackgroundTimers();
+    appInitialized = false;
     showLoginOverlay(false);
     await checkPanelAuth();
     toast(tt("toast.logout"), "info");
@@ -1044,7 +1120,7 @@ async function saveTelegramCredentials() {
     const apiId = parseInt(document.getElementById("auth-api-id").value, 10);
     const apiHash = document.getElementById("auth-api-hash").value.trim();
     const phone = document.getElementById("auth-phone").value.trim();
-    if (!apiId) { showStatus("auth-status", "API ID gerekli", "error"); return; }
+    if (!apiId) { showStatus("auth-status", tt("auth.apiIdRequired"), "error"); return; }
     if (!apiHash) { showStatus("auth-status", tt("auth.enterHash"), "error"); return; }
     await api(withAccountIdFor("/api/credentials/telegram", aid, "telegram"), {
       method: "PUT",
@@ -1066,7 +1142,7 @@ async function startAuth() {
     const r = await api(withAccountIdFor("/api/auth/start", aid, "telegram"), { method: "POST", body: JSON.stringify(body) });
     if (r.status === "already_authorized") { toastT("toast.alreadyConnected", "success"); return checkAuthStatus(aid); }
     document.getElementById("code-step").classList.remove("hidden");
-    showStatus("auth-status", "Kodu girin.", "success");
+    showStatus("auth-status", tt("auth.enterCode"), "success");
   } catch (e) { showStatus("auth-status", e.message, "error"); }
 }
 
@@ -1173,8 +1249,8 @@ async function loadWaStats(accountId) {
     if (!box) return;
     if (s.connected) {
       box.classList.remove("hidden");
-      document.getElementById("wa-stat-chats").textContent = `${s.bridge_chats || s.panel_conversations || 0} sohbet`;
-      document.getElementById("wa-stat-msgs").textContent = `${s.bridge_messages || 0} mesaj`;
+      document.getElementById("wa-stat-chats").textContent = tt("account.waStatChats", { count: s.bridge_chats || s.panel_conversations || 0 });
+      document.getElementById("wa-stat-msgs").textContent = tt("account.waStatMsgs", { count: s.bridge_messages || 0 });
     } else {
       box.classList.add("hidden");
     }
@@ -1215,6 +1291,11 @@ async function loadStats() {
     document.getElementById("stat-scheduler").classList.toggle("success", s.scheduler.running);
     document.getElementById("pending-badge").classList.toggle("hidden", !s.pending);
     if (s.pending) document.getElementById("pending-badge").textContent = s.pending;
+    const mobBadge = document.getElementById("mobile-pending-badge");
+    if (mobBadge) {
+      mobBadge.classList.toggle("hidden", !s.pending);
+      if (s.pending) mobBadge.textContent = s.pending;
+    }
 
     const tgEl = document.getElementById("dash-tg-status");
     const waEl = document.getElementById("dash-wa-status");
@@ -1246,8 +1327,7 @@ function startCountdown(target) {
   function tick() {
     const diff = target - Date.now();
     if (diff <= 0) { el.textContent = tt("countdown.now"); return; }
-    const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000), sec = Math.floor((diff % 60000) / 1000);
-    el.textContent = `Kalan: ${h ? h + "s " : ""}${m}dk ${sec}sn`;
+    el.textContent = formatCountdownRemaining(diff);
   }
   tick();
   countdownTimer = setInterval(tick, 1000);
@@ -1496,7 +1576,7 @@ function getChatDisplay(chat) {
   if (formattedPhone) {
     return { title: formattedPhone, subtitle: null };
   }
-  return { title: rawName || phone || "Sohbet", subtitle: null };
+  return { title: rawName || phone || tt("chats.unnamedChat"), subtitle: null };
 }
 
 function formatMessageTime(ts) {
@@ -1511,9 +1591,9 @@ function formatShortTime(ts) {
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
   if (isToday) {
-    return d.toLocaleTimeString("tr-TR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString(userLocale(), { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
   }
-  return d.toLocaleDateString("tr-TR", { timeZone: TZ, day: "2-digit", month: "2-digit" });
+  return d.toLocaleDateString(userLocale(), { timeZone: TZ, day: "2-digit", month: "2-digit" });
 }
 
 function setChatListFilter(filter) {
@@ -1534,23 +1614,23 @@ function applyChatListFilter(chats) {
 function getMessageDayKey(ts) {
   if (!ts) return "";
   const d = typeof ts === "number" ? new Date(ts * 1000) : new Date(ts.endsWith("Z") || ts.includes("+") ? ts : ts + "Z");
-  return d.toLocaleDateString("tr-TR", { timeZone: TZ });
+  return d.toLocaleDateString(userLocale(), { timeZone: TZ });
 }
 
 function formatDayLabel(ts) {
   const key = getMessageDayKey(ts);
-  const today = new Date().toLocaleDateString("tr-TR", { timeZone: TZ });
-  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("tr-TR", { timeZone: TZ });
+  const today = new Date().toLocaleDateString(userLocale(), { timeZone: TZ });
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString(userLocale(), { timeZone: TZ });
   if (key === today) return tt("chats.today");
   if (key === yesterday) return tt("chats.yesterday");
   const d = typeof ts === "number" ? new Date(ts * 1000) : new Date(ts.endsWith("Z") || ts.includes("+") ? ts : ts + "Z");
-  return d.toLocaleDateString("tr-TR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
+  return d.toLocaleDateString(userLocale(), { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
 }
 
 function formatBubbleTime(ts) {
   if (!ts) return "";
   const d = typeof ts === "number" ? new Date(ts * 1000) : new Date(ts.endsWith("Z") || ts.includes("+") ? ts : ts + "Z");
-  return d.toLocaleTimeString("tr-TR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString(userLocale(), { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
 }
 function filterChats(chats, search) {
   if (!search) return chats;
@@ -1586,7 +1666,7 @@ function renderChatListItems(chats) {
           <span class="chat-item-time">${formatShortTime(c.last_timestamp)}</span>
         </div>
         <div class="chat-item-bottom">
-          <div class="chat-item-preview muted small">${c.type === "group" ? `${icon("users", { size: 12, class: "icon inline-group-icon" })} ` : ""}${escapeHtml((c.last_message || "Mesaj yok").slice(0, 60))}</div>
+          <div class="chat-item-preview muted small">${c.type === "group" ? `${icon("users", { size: 12, class: "icon inline-group-icon" })} ` : ""}${escapeHtml((c.last_message || tt("chats.noMessagePreview")).slice(0, 60))}</div>
           ${c.unread_count > 0 ? `<span class="unread-badge">${c.unread_count > 99 ? "99+" : c.unread_count}</span>` : ""}
         </div>
       </div>
@@ -1814,16 +1894,26 @@ async function loadDeveloperTools() {
     const keys = await api("/api/v1/keys");
     keysEl.innerHTML = keys.length
       ? keys.map((k) => `<div class="dev-item"><strong>${escapeHtml(k.name)}</strong><span class="muted small">${escapeHtml(k.key_prefix)}…</span>
-        <button class="btn ghost small" onclick="revokeApiKey(${k.id})">Sil</button></div>`).join("")
+        <button class="btn ghost small" onclick="revokeApiKey(${k.id})">${tt("common.delete")}</button></div>`).join("")
       : `<p class="muted small">${tt("developer.noApiKeys")}</p>`;
     const hooks = await api("/api/v1/webhooks");
     if (hooksEl) {
       hooksEl.innerHTML = hooks.length
         ? hooks.map((h) => `<div class="dev-item"><strong>${escapeHtml(h.name)}</strong><span class="muted small">${escapeHtml(h.url)}</span>
-          <button class="btn ghost small" onclick="deleteWebhook(${h.id})">Sil</button></div>`).join("")
+          <button class="btn ghost small" onclick="deleteWebhook(${h.id})">${tt("common.delete")}</button></div>`).join("")
         : `<p class="muted small">${tt("developer.noWebhooks")}</p>`;
     }
   } catch (_) {}
+}
+
+function toggleDeveloperCard() {
+  const card = document.getElementById("developer-card");
+  const btn = document.getElementById("developer-toggle");
+  if (!card || !btn) return;
+  card.classList.toggle("collapsed");
+  const collapsed = card.classList.contains("collapsed");
+  btn.textContent = tt(collapsed ? "developer.show" : "developer.hide");
+  if (!collapsed) loadDeveloperTools();
 }
 
 async function createApiKeyPrompt() {
@@ -2032,7 +2122,7 @@ async function syncAllMessages(silent = false) {
         showImportProgress(
           offset,
           total,
-          firstChunk ? "Mesajlar kaydediliyor..." : `${totalSynced.toLocaleString("tr-TR")} mesaj kaydedildi`
+          firstChunk ? tt("import.syncing") : tt("import.savedCount", { count: localeNumber(totalSynced) })
         );
       }
       const r = await api(
@@ -2045,7 +2135,7 @@ async function syncAllMessages(silent = false) {
         showImportProgress(
           r.next_offset || offset,
           total || r.stored_messages || 0,
-          `${totalSynced.toLocaleString("tr-TR")} mesaj kaydedildi`
+          tt("import.savedCount", { count: localeNumber(totalSynced) })
         );
       }
       if (firstChunk || (r.synced > 0)) {
@@ -2059,7 +2149,7 @@ async function syncAllMessages(silent = false) {
     invalidatePlatformCache(currentPlatform, getAccountId());
     await loadChatThread(false);
     loadWaStats();
-    if (!silent) toast(`${totalSynced.toLocaleString("tr-TR")} mesaj kaydedildi`, "success");
+    if (!silent) toastT("import.savedCount", "success", { count: localeNumber(totalSynced) });
   } catch (e) {
     if (!silent) toast(e.message, "error");
   } finally {
@@ -2296,7 +2386,7 @@ async function testSendNaber() {
     toastT("test.naberSent", "success", { name: r.target.chat_name });
   } catch (e) {
     toast(e.message, "error");
-    if (e.message.includes("Test modu")) {
+    if (e.message.includes("error.outbound") || e.message.includes("Test modu")) {
       showStatus("auth-status", tt("test.safeMode"), "error");
     }
   }
@@ -2678,8 +2768,8 @@ async function loadTemplates() {
     list.innerHTML = templates.map((t) => `
       <div class="template-item">
         <header><strong>${escapeHtml(t.title)}</strong>
-          <div><button class="btn small ghost" onclick="useTemplate(${t.id})">Kullan</button>
-          <button class="btn small danger" onclick="deleteTemplate(${t.id})">Sil</button></div>
+          <div><button class="btn small ghost" onclick="useTemplate(${t.id})">${tt("common.use")}</button>
+          <button class="btn small danger" onclick="deleteTemplate(${t.id})">${tt("common.delete")}</button></div>
         </header>
         <p>${escapeHtml(t.message_text.slice(0,120))}</p>
       </div>`).join("");
@@ -2721,31 +2811,36 @@ function startRefreshTimer() {
     loadStats();
     updateMiniStatus();
     if (document.getElementById("tab-scheduled")?.classList.contains("active")) loadScheduled();
-  }, 15000);
+  }, 30000);
 }
 
 // ─── Init ────────────────────────────────────────────
 async function init() {
   initIcons();
   updatePlatformChrome();
-  connectWebSocket();
+  if (!appInitialized) {
+    connectWebSocket();
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => setChatThreadOpen(!!activeThreadChat), 150);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = null;
+      } else {
+        loadStats();
+        updateMiniStatus();
+        startRefreshTimer();
+      }
+    });
+    appInitialized = true;
+  } else {
+    connectWebSocket();
+  }
   updateMobileChrome("dashboard");
   renderRecentChats();
-  let resizeTimer;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => setChatThreadOpen(!!activeThreadChat), 150);
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      if (refreshTimer) clearInterval(refreshTimer);
-      refreshTimer = null;
-    } else {
-      loadStats();
-      updateMiniStatus();
-      startRefreshTimer();
-    }
-  });
   try {
     await Promise.all([loadAccounts("telegram"), loadAccounts("whatsapp")]);
     const cfg = await api("/api/config");

@@ -34,6 +34,8 @@ html[data-theme="light"] {
   --shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
   --sidebar-end: #eef2f7;
 }
+
+html[data-theme="light"] .safe-mode-banner {
   background: rgba(252, 196, 25, 0.12);
   color: #b8860b;
 }
@@ -180,7 +182,17 @@ html[data-theme="light"] {
 }
 .msg-document:hover { background: var(--border); }
 
-.developer-card { margin-top: 16px; }
+.developer-card.collapsed .dev-grid { display: none; }
+.developer-toggle { margin-top: 8px; }
+.account-help-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 12px;
+  font-size: 0.85rem;
+  color: var(--primary);
+}
+.account-help-link:hover { text-decoration: underline; }
 .developer-card h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
 .dev-list { margin: 8px 0 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -1333,6 +1345,7 @@ body.rtl .login-brand { flex-direction: row-reverse; text-align: end; }
   .content { max-width: none; padding: 24px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .connection-cards { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 900px) {
@@ -1438,6 +1451,15 @@ body.rtl .login-brand { flex-direction: row-reverse; text-align: end; }
   }
 
   .sidebar.open { transform: translateX(0); }
+  body.rtl .sidebar {
+    left: auto;
+    right: 0;
+    transform: translateX(105%);
+    border-right: none;
+    border-left: 1px solid var(--border);
+  }
+  body.rtl .sidebar.open { transform: translateX(0); }
+  body.sidebar-open { overflow: hidden; }
 
   .sidebar nav {
     flex-direction: column;
@@ -1466,13 +1488,27 @@ body.rtl .login-brand { flex-direction: row-reverse; text-align: end; }
 
   .grid-2,
   .chat-layout { grid-template-columns: 1fr; }
-  .compose-action-bar { flex-direction: column; }
 
-  .chat-layout {
-    height: calc(100dvh - 220px);
-    min-height: 420px;
+  .content-panels {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
   }
 
+  .tab.active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .chat-layout {
+    flex: 1;
+    min-height: 280px;
+    height: auto;
+  }
+  .compose-action-bar { flex-direction: column; }
   .schedule-presets { grid-template-columns: repeat(2, 1fr); }
   .schedule-datetime-row { grid-template-columns: 1fr; }
   .scheduled-segments { overflow-x: auto; flex-wrap: nowrap; }
@@ -1521,13 +1557,14 @@ body.rtl .login-brand { flex-direction: row-reverse; text-align: end; }
   .brand h1 { font-size: 0.95rem; }
   .platform-switch { flex-direction: column; }
   .filter-tabs { gap: 6px; }
-  .filter-tab { min-height: 36px; }
+  .filter-tab { min-height: 44px; }
   .chat-compose-actions { flex-direction: column; }
   .chat-compose-actions .btn { width: 100%; }
   .qr-card { padding: 20px 16px; }
   .globe-wrap { width: 180px; height: 180px; }
   .qr-frame { width: 130px; height: 130px; }
   .qr-frame img { width: 110px; height: 110px; }
+  .wa-qr-img { width: min(260px, 78vw); height: auto; aspect-ratio: 1; }
 }
 
 @media (min-width: 901px) {
@@ -2307,7 +2344,25 @@ body[data-platform="whatsapp"] .brand-icon {
   .platform-pill { display: none; }
   .platform-switch-track .platform-btn { min-height: 50px; }
   .chat-item { min-height: 64px; padding: 12px 14px; }
-  .compose-icon-btn { min-width: 44px; min-height: 44px; font-size: 1.2rem; }
+  .mob-plat-btn { min-width: 44px; min-height: 44px; width: 44px; height: 44px; }
+  .account-add-btn { width: 44px; height: 44px; font-size: 1.25rem; }
+  .mob-nav-btn { min-height: 52px; position: relative; }
+  .mob-nav-badge {
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 22px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 99px;
+    background: var(--warning);
+    color: #1a1a1a;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+  .mob-nav-badge.hidden { display: none; }
   .chat-filter { min-height: 40px; padding: 8px 14px; }
   #chat-reply { font-size: 1rem; min-height: 44px; }
 }

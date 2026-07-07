@@ -16,7 +16,7 @@ fail() { red "$1"; FAIL=1; }
 
 section "1. Governance files (OSPO baseline)"
 REQUIRED=(
-  LICENSE
+  src/LICENSE
   README.md
   src/docs/CONTRIBUTING.md
   src/docs/SECURITY.md
@@ -71,7 +71,7 @@ else
 fi
 
 section "4. License & metadata"
-if [[ -f LICENSE ]] && grep -qi "MIT License" LICENSE; then
+if [[ -f src/LICENSE ]] && grep -qi "MIT License" src/LICENSE; then
   green "MIT LICENSE present"
 else
   fail "LICENSE missing or not MIT"

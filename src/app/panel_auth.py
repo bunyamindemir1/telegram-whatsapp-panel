@@ -11,6 +11,7 @@ from fastapi import HTTPException, Request, WebSocket
 from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
 from sqlalchemy import func, select
 
+from app import error_codes as E
 from app.config import (
     ENV,
     PANEL_ADMIN_PASSWORD,
@@ -141,10 +142,10 @@ async def authenticate(request: Request, username: Optional[str], password: str)
     users = await count_users()
     if users == 0:
         login_rate_limiter.record_failure(ip)
-        raise HTTPException(status_code=401, detail="Hatalı kullanıcı adı veya şifre")
+        raise HTTPException(status_code=401, detail=E.AUTH_INVALID)
     if not username:
         login_rate_limiter.record_failure(ip)
-        raise HTTPException(status_code=400, detail="Kullanıcı adı gerekli")
+        raise HTTPException(status_code=400, detail=E.AUTH_USERNAME_REQUIRED)
 
     user = await get_user_by_username(username.strip().lower())
     password_hash = user.password_hash if user else DUMMY_BCRYPT_HASH
@@ -152,10 +153,10 @@ async def authenticate(request: Request, username: Optional[str], password: str)
 
     if not user or not valid:
         login_rate_limiter.record_failure(ip)
-        raise HTTPException(status_code=401, detail="Hatalı kullanıcı adı veya şifre")
+        raise HTTPException(status_code=401, detail=E.AUTH_INVALID)
     if not user.is_active:
         login_rate_limiter.record_failure(ip)
-        raise HTTPException(status_code=403, detail="Hesap devre dışı")
+        raise HTTPException(status_code=403, detail=E.AUTH_ACCOUNT_DISABLED)
 
     login_rate_limiter.record_success(ip)
     return user
@@ -169,9 +170,9 @@ async def check_panel_auth(request: Request) -> None:
         return
 
     if await setup_required():
-        raise HTTPException(status_code=401, detail="Önce panel kurulumu gerekli")
+        raise HTTPException(status_code=401, detail=E.AUTH_SETUP_REQUIRED)
 
-    raise HTTPException(status_code=401, detail="Giriş gerekli")
+    raise HTTPException(status_code=401, detail=E.AUTH_LOGIN_REQUIRED)
 
 
 async def ws_authenticated(websocket: WebSocket) -> bool:

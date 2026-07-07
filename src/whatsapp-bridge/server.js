@@ -135,14 +135,14 @@ function extractText(message) {
   const m = message.message || message;
   if (m.conversation) return m.conversation;
   if (m.extendedTextMessage?.text) return m.extendedTextMessage.text;
-  if (m.imageMessage) return m.imageMessage.caption ? `[Fotoğraf] ${m.imageMessage.caption}` : "Fotoğraf";
+  if (m.imageMessage) return m.imageMessage.caption ? `[Photo] ${m.imageMessage.caption}` : "Photo";
   if (m.videoMessage) return m.videoMessage.caption ? `[Video] ${m.videoMessage.caption}` : "Video";
-  if (m.audioMessage) return "Ses";
-  if (m.documentMessage) return m.documentMessage.fileName || "Dosya";
-  if (m.stickerMessage) return "Çıkartma";
-  if (m.locationMessage) return "Konum";
-  if (m.contactMessage) return "Kişi";
-  return "Mesaj";
+  if (m.audioMessage) return "Audio";
+  if (m.documentMessage) return m.documentMessage.fileName || "File";
+  if (m.stickerMessage) return "Sticker";
+  if (m.locationMessage) return "Location";
+  if (m.contactMessage) return "Contact";
+  return "Message";
 }
 
 function classifyMessage(message) {
@@ -582,15 +582,15 @@ async function handleSend(accountId, jid, message, res) {
   const account = getAccount(accountId);
   if (!OUTBOUND_ALLOWED) {
     return res.status(403).json({
-      error: "Test modu: giden mesajlar kapalı (ALLOW_OUTBOUND_MESSAGES=false)",
+      error: "error.outbound.testMode",
       dry_run: true,
     });
   }
   if (!account.sock || account.connectionStatus !== "connected") {
-    return res.status(400).json({ error: "WhatsApp bağlı değil" });
+    return res.status(400).json({ error: "error.whatsapp.notConnected" });
   }
   if (!jid || !message) {
-    return res.status(400).json({ error: "jid ve message gerekli" });
+    return res.status(400).json({ error: "error.whatsapp.missingFields" });
   }
   try {
     const result = await account.sock.sendMessage(jid, { text: message });
@@ -635,19 +635,19 @@ async function handleSendMedia(accountId, jid, mediaPath, caption, mime, res) {
   const account = getAccount(accountId);
   if (!OUTBOUND_ALLOWED) {
     return res.status(403).json({
-      error: "Test modu: giden mesajlar kapalı (ALLOW_OUTBOUND_MESSAGES=false)",
+      error: "error.outbound.testMode",
       dry_run: true,
     });
   }
   if (!account.sock || account.connectionStatus !== "connected") {
-    return res.status(400).json({ error: "WhatsApp bağlı değil" });
+    return res.status(400).json({ error: "error.whatsapp.notConnected" });
   }
   if (!jid || !mediaPath) {
-    return res.status(400).json({ error: "jid ve media_path gerekli" });
+    return res.status(400).json({ error: "error.whatsapp.missingMediaFields" });
   }
   const fullPath = path.join(DATA_ROOT, "media", mediaPath);
   if (!fs.existsSync(fullPath)) {
-    return res.status(404).json({ error: "Medya dosyası bulunamadı" });
+    return res.status(404).json({ error: "error.media.notFound" });
   }
   try {
     const buffer = fs.readFileSync(fullPath);

@@ -12,14 +12,14 @@ def test_dockerfile_copies_locales():
 
 
 def test_docker_compose_has_panel_and_bridge():
-    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    compose = (SRC / "docker" / "compose.yml").read_text(encoding="utf-8")
     assert "panel:" in compose
     assert "whatsapp-bridge:" in compose
 
 
 def test_governance_files_exist():
     required = [
-        "LICENSE",
+        "src/LICENSE",
         "README.md",
         "src/docs/CONTRIBUTING.md",
         "src/docs/SECURITY.md",

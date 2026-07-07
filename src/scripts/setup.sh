@@ -119,6 +119,11 @@ setup_docker() {
   echo ""
   echo "  Tekrar başlatma: make setup -- --fast"
   echo ""
+  yellow "Sorun giderme:"
+  echo "  • Docker çalışmıyor mu?  Docker Desktop'ı açın"
+  echo "  • Port meşgul mü?         docker compose down && make setup -- --port 8080"
+  echo "  • Loglar:                 docker compose logs -f panel"
+  echo ""
 }
 
 setup_local() {
@@ -128,10 +133,23 @@ setup_local() {
     write_env_file "$PORT" local
   fi
   echo ""
-  green "Yerel kurulum tamam. Başlatmak için:"
-  echo "  make start"
+  bold "→ Panel başlatılıyor..."
+  export PORT
+  if ! "$SCRIPT_DIR/start.sh" --port "$PORT"; then
+    red "Panel başlatılamadı."
+    echo ""
+    yellow "Sorun giderme:"
+    echo "  • Port kullanımda mı?  lsof -i :${PORT}"
+    echo "  • Loglar: tail -30 .run/panel.log"
+    echo "  • Manuel: make start"
+    exit 1
+  fi
   echo ""
-  yellow "Tek komut (kur + başlat): make quick"
+  yellow "  Test modu aktif — mesaj gönderilmez (ALLOW_OUTBOUND_MESSAGES=false)"
+  echo "  Canlıya geçiş: .env içinde ALLOW_OUTBOUND_MESSAGES=true"
+  echo ""
+  echo "  Rehber: src/docs/QUICKSTART.md"
+  echo ""
 }
 
 bold "Mesaj Paneli — Kurulum"

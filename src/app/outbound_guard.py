@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from app import error_codes as E
 from app.config import ALLOW_OUTBOUND_MESSAGES
 
 logger = logging.getLogger(__name__)
@@ -19,14 +20,12 @@ def outbound_allowed() -> bool:
 
 def ensure_outbound_allowed() -> None:
     if not outbound_allowed():
-        raise OutboundBlockedError(
-            "Giden mesajlar kapalı (test modu). Canlı gönderim için ALLOW_OUTBOUND_MESSAGES=true ayarlayın."
-        )
+        raise OutboundBlockedError(E.OUTBOUND_BLOCKED)
 
 
 def simulated_send_result(platform: str, chat_id: str, message: str) -> dict[str, Any]:
     logger.info(
-        "[DRY-RUN] Simüle gönderim engellendi | platform=%s chat=%s len=%d",
+        "[DRY-RUN] Outbound blocked | platform=%s chat=%s len=%d",
         platform,
         chat_id,
         len(message),
@@ -35,5 +34,5 @@ def simulated_send_result(platform: str, chat_id: str, message: str) -> dict[str
         "dry_run": True,
         "simulated": True,
         "message_id": f"dry-{int(datetime.utcnow().timestamp())}",
-        "detail": "Test modu: mesaj gönderilmedi",
+        "detail": E.OUTBOUND_DRY_RUN,
     }

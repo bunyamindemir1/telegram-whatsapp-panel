@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app import error_codes as E
 from fastapi import HTTPException, Request
 
 from app import panel_auth
@@ -10,7 +11,7 @@ from app.models import Platform
 def validate_platform(platform: str) -> str:
     allowed = {Platform.TELEGRAM.value, Platform.WHATSAPP.value}
     if platform not in allowed:
-        raise HTTPException(status_code=400, detail="Geçersiz platform")
+        raise HTTPException(status_code=400, detail=E.INVALID_PLATFORM)
     return platform
 
 
@@ -26,5 +27,5 @@ async def require_v1_auth(request: Request) -> None:
         if key:
             request.state.api_key_id = key.id
             return
-        raise HTTPException(status_code=401, detail="Geçersiz API anahtarı")
+        raise HTTPException(status_code=401, detail=E.API_KEY_INVALID)
     await check_panel_auth(request)

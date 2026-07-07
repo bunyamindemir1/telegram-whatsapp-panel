@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 from typing import Callable
 
+from app import error_codes as E
 from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -81,7 +82,7 @@ class LoginRateLimiter:
             wait = int(locked - now)
             raise HTTPException(
                 status_code=429,
-                detail=f"Çok fazla başarısız deneme. {max(wait, 1)} saniye sonra tekrar deneyin.",
+                detail={"code": E.AUTH_RATE_LIMIT, "seconds": max(wait, 1)},
             )
         self._prune(ip, now)
 

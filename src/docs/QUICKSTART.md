@@ -1,3 +1,23 @@
+# Quick Start — 60 seconds (English)
+
+Install the Message Panel with **one command** (Docker recommended):
+
+```bash
+git clone https://github.com/bunyamindemir1/telegram-whatsapp-panel.git
+cd telegram-whatsapp-panel
+make setup
+```
+
+Open **http://127.0.0.1:8000** — login with `admin` and the password printed at the end (also in `.setup-credentials.txt`).
+
+**No Docker?** Run `make quick` (Python 3.9+ and Node.js 18+). The installer starts the panel automatically.
+
+**Test mode** is on by default — no messages are sent until you set `ALLOW_OUTBOUND_MESSAGES=true` in `.env` and restart.
+
+**Troubleshooting:** Docker not running → start Docker Desktop. Port in use → `make setup -- --port 8080`. Logs → `docker compose logs -f panel` or `tail -f .run/panel.log`.
+
+---
+
 # Hızlı Başlangıç — 60 saniye
 
 Bu rehber, Mesaj Paneli'ni **Docker** ile en hızlı şekilde ayağa kaldırmanız içindir.

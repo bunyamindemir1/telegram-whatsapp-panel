@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi import HTTPException, UploadFile
 
+from app import error_codes as E
 from app.config import MEDIA_DIR
 
 MAX_MEDIA_BYTES = 50 * 1024 * 1024
@@ -43,10 +44,10 @@ async def save_upload(
 ) -> dict:
     content = await upload.read()
     if len(content) > MAX_MEDIA_BYTES:
-        raise HTTPException(status_code=413, detail="Dosya çok büyük (max 50MB)")
+        raise HTTPException(status_code=413, detail=E.MEDIA_TOO_LARGE)
     mime = upload.content_type or mimetypes.guess_type(upload.filename or "")[0] or "application/octet-stream"
     if not any(mime.startswith(p) for p in ALLOWED_MIME_PREFIXES):
-        raise HTTPException(status_code=400, detail=f"Desteklenmeyen dosya türü: {mime}")
+        raise HTTPException(status_code=400, detail={"code": E.MEDIA_UNSUPPORTED, "mime": mime})
 
     ext = Path(upload.filename or "").suffix
     if not ext:
@@ -72,9 +73,9 @@ async def save_upload(
 def resolve_media_path(media_path: str) -> Path:
     candidate = (MEDIA_DIR / media_path).resolve()
     if not str(candidate).startswith(str(MEDIA_DIR.resolve())):
-        raise HTTPException(status_code=400, detail="Geçersiz medya yolu")
+        raise HTTPException(status_code=400, detail=E.MEDIA_INVALID_PATH)
     if not candidate.exists():
-        raise HTTPException(status_code=404, detail="Medya bulunamadı")
+        raise HTTPException(status_code=404, detail=E.MEDIA_NOT_FOUND)
     return candidate
 
 

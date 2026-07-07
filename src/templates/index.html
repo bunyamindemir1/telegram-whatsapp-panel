@@ -105,7 +105,7 @@
     <div class="card qr-card wa-qr-card">
       <div class="wa-qr-header">
         <span class="wa-logo"><span data-icon="brand-whatsapp" data-icon-size="20"></span> WhatsApp</span>
-        <button class="icon-btn" onclick="closeQrModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+        <button class="icon-btn" onclick="closeQrModal()" data-i18n-aria="common.close" aria-label="Close"><span data-icon="x"></span></button>
       </div>
       <div class="qr-frame wa-qr-frame" id="qr-frame">
         <div class="qr-placeholder"><span class="loading"></span><p data-i18n="qr.preparing">Preparing QR…</p></div>
@@ -119,7 +119,7 @@
       <p class="muted small" id="qr-status" data-i18n="qr.waiting">Waiting…</p>
       <div class="wa-qr-actions">
         <button class="btn ghost" onclick="closeQrModal()" data-i18n="qr.cancel">Cancel</button>
-        <button class="btn wa-btn" onclick="openQrModal()" data-i18n="qr.refresh"><span data-icon="refresh-cw" data-icon-size="16"></span> Yenile</button>
+        <button class="btn wa-btn" onclick="openQrModal()" data-i18n="qr.refresh"><span data-icon="refresh-cw" data-icon-size="16"></span> <span data-i18n="common.refresh">Refresh</span></button>
       </div>
     </div>
   </div>
@@ -137,7 +137,7 @@
           <h2><span data-icon="clock" data-icon-size="20"></span> <span data-i18n="schedule.title">Schedule</span></h2>
           <p class="muted small" id="schedule-modal-recipient">—</p>
         </div>
-        <button class="icon-btn" onclick="closeScheduleModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+        <button class="icon-btn" onclick="closeScheduleModal()" data-i18n-aria="common.close" aria-label="Close"><span data-icon="x"></span></button>
       </div>
 
       <div class="schedule-message-preview" id="schedule-modal-message">—</div>
@@ -224,7 +224,7 @@
           <h2 id="add-account-title" data-i18n="account.add">Add Account</h2>
           <p class="muted small" id="add-account-subtitle" data-i18n="account.addSubtitle">Create a new account</p>
         </div>
-        <button class="icon-btn" onclick="closeAddAccountModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+        <button class="icon-btn" onclick="closeAddAccountModal()" data-i18n-aria="common.close" aria-label="Close"><span data-icon="x"></span></button>
       </div>
       <div class="field" style="padding: 0 20px 16px;">
         <label data-i18n="account.name">Account name</label>
@@ -245,7 +245,7 @@
           <h2 data-i18n="rename.title">Rename Chat</h2>
           <p class="muted small" id="rename-chat-hint" data-i18n="rename.hint">Display name in list</p>
         </div>
-        <button class="icon-btn" onclick="closeRenameChatModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+        <button class="icon-btn" onclick="closeRenameChatModal()" data-i18n-aria="common.close" aria-label="Close"><span data-icon="x"></span></button>
       </div>
       <div class="field" style="padding: 0 20px 16px;">
         <label data-i18n="rename.label">Display name</label>
@@ -325,7 +325,7 @@
         <button type="button" class="mob-plat-btn active" data-platform="telegram" onclick="setPlatform('telegram')" aria-label="Telegram"><span data-icon="brand-telegram"></span></button>
         <button type="button" class="mob-plat-btn" data-platform="whatsapp" onclick="setPlatform('whatsapp')" aria-label="WhatsApp"><span data-icon="brand-whatsapp"></span></button>
       </div>
-      <button class="icon-btn" id="mobile-refresh" aria-label="Yenile" onclick="refreshCurrentTab()"><span data-icon="refresh-cw"></span></button>
+      <button class="icon-btn" id="mobile-refresh" data-i18n-aria="common.refresh" aria-label="Refresh" onclick="refreshCurrentTab()"><span data-icon="refresh-cw"></span></button>
     </header>
 
     <div class="sidebar-backdrop hidden" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -733,6 +733,10 @@
             <p class="muted small">
               <span data-i18n="account.credentialsNote">Encrypted credentials</span>
             </p>
+            <a class="account-help-link tg-auth-field" href="https://my.telegram.org/apps" target="_blank" rel="noopener noreferrer">
+              <span data-icon="external-link" data-icon-size="14"></span>
+              <span data-i18n="account.telegramHelp">Get API credentials at my.telegram.org</span>
+            </a>
             <div id="credentials-status" class="info-note" style="margin-bottom:12px;display:none"></div>
 
             <div class="field tg-auth-field">
@@ -773,8 +777,8 @@
               <p class="muted" data-i18n="account.waLinkDesc">QR link</p>
               <button class="btn primary wa-btn" onclick="openQrModal()"><span data-icon="qr-code" data-icon-size="14"></span> <span data-i18n="account.whatsappQr">Connect WhatsApp</span></button>
               <div id="wa-stats-box" class="wa-stats-box hidden">
-                <span id="wa-stat-chats">— sohbet</span>
-                <span id="wa-stat-msgs">— mesaj</span>
+                <span id="wa-stat-chats">—</span>
+                <span id="wa-stat-msgs">—</span>
               </div>
             </div>
 
@@ -783,7 +787,7 @@
           </div>
         </div>
 
-        <div class="card developer-card" id="developer-card">
+        <div class="card developer-card collapsed" id="developer-card">
           <h3><span data-icon="settings" data-icon-size="18"></span> <span data-i18n="developer.title">Developer</span></h3>
           <p class="muted small"><span data-i18n="developer.subtitle">API tools</span> <a href="/docs" target="_blank" rel="noopener" data-i18n="developer.apiDocs">API docs</a></p>
           <div class="dev-grid">
@@ -798,6 +802,7 @@
               <button class="btn secondary small" onclick="createWebhookPrompt()">+ <span data-i18n="account.createWebhook">Webhook</span></button>
             </div>
           </div>
+          <button type="button" class="btn ghost small developer-toggle" id="developer-toggle" onclick="toggleDeveloperCard()" data-i18n="developer.show">Show developer tools</button>
         </div>
       </section>
       </div><!-- /content-panels -->
@@ -815,6 +820,7 @@
       </button>
       <button class="mob-nav-btn" data-tab="scheduled" onclick="mobileNav('scheduled')">
         <span data-icon="clock"></span><small data-i18n="nav.scheduledShort">Plan</small>
+        <span class="mob-nav-badge hidden" id="mobile-pending-badge" aria-hidden="true"></span>
       </button>
       <button class="mob-nav-btn" data-tab="account" onclick="mobileNav('account')">
         <span data-icon="user"></span><small data-i18n="nav.accountShort">Account</small>

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Shared helpers for setup.sh / start.sh
 
+export COMPOSE_FILE="${COMPOSE_FILE:-src/docker/compose.yml}"
+
 rand_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -base64 32 | tr -d '/+=' | head -c 32

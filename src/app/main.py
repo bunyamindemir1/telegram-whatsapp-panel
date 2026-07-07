@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from app.bridge_manager import start_whatsapp_bridge, stop_whatsapp_bridge
+from app import error_codes as E
 from app.config import (
     ALLOW_OUTBOUND_MESSAGES,
     BASE_DIR,
@@ -223,13 +224,13 @@ class WhatsAppSyncRequest(BaseModel):
 def _check_bridge_auth(request: Request) -> None:
     token = request.headers.get("X-Bridge-Token", "")
     if not verify_bridge_token(token, BRIDGE_SECRET):
-        raise HTTPException(status_code=403, detail="Geçersiz köprü anahtarı")
+        raise HTTPException(status_code=403, detail=E.BRIDGE_INVALID_SECRET)
 
 
 def _validate_platform(platform: str) -> str:
     allowed = {Platform.TELEGRAM.value, Platform.WHATSAPP.value}
     if platform not in allowed:
-        raise HTTPException(status_code=400, detail="Geçersiz platform")
+        raise HTTPException(status_code=400, detail=E.INVALID_PLATFORM)
     return platform
 
 
@@ -314,7 +315,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Mesaj Paneli — Telegram & WhatsApp",
+    title="Message Panel — Telegram & WhatsApp",
     description="Self-hosted messaging panel with REST API v1. Docs: /docs",
     version="1.0.0",
     lifespan=lifespan,
@@ -402,7 +403,7 @@ async def api_i18n_messages(locale_code: str):
 @app.post("/api/panel/setup")
 async def panel_setup(request: Request, body: PanelSetupRequest):
     if await panel_auth.count_users() > 0:
-        raise HTTPException(status_code=400, detail="Kurulum zaten tamamlanmış")
+        raise HTTPException(status_code=400, detail=E.SETUP_ALREADY_DONE)
     ip = get_client_ip(request)
     login_rate_limiter.check_allowed(ip)
     try:
@@ -433,9 +434,9 @@ async def panel_login(request: Request, body: PanelLoginRequest):
 
     login_rate_limiter.record_failure(ip)
     if await panel_auth.setup_required():
-        raise HTTPException(status_code=400, detail="Önce /api/panel/setup ile admin oluşturun")
+        raise HTTPException(status_code=400, detail=E.PANEL_SETUP_REQUIRED)
 
-    raise HTTPException(status_code=401, detail="Hatalı kullanıcı adı veya şifre")
+    raise HTTPException(status_code=401, detail=E.AUTH_INVALID)
 
 
 @app.post("/api/panel/logout")
@@ -552,7 +553,7 @@ async def api_delete_account(request: Request, account_id: int):
     accounts = await list_accounts()
     acc = next((a for a in accounts if a["id"] == account_id), None)
     if not acc:
-        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+        raise HTTPException(status_code=404, detail=E.ACCOUNT_NOT_FOUND)
     if acc["platform"] == Platform.TELEGRAM.value:
         await telegram_service.logout(account_id)
     elif acc["platform"] == Platform.WHATSAPP.value:
@@ -567,7 +568,7 @@ async def api_account_status(request: Request, account_id: int):
     accounts = await list_accounts()
     acc = next((a for a in accounts if a["id"] == account_id), None)
     if not acc:
-        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+        raise HTTPException(status_code=404, detail=E.ACCOUNT_NOT_FOUND)
     if acc["platform"] == Platform.TELEGRAM.value:
         status = await telegram_service.get_status(account_id)
     else:
@@ -698,7 +699,7 @@ async def update_telegram_credentials_api(
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     if not await panel_auth.ws_authenticated(websocket):
-        await websocket.close(code=4401, reason="Giriş gerekli")
+        await websocket.close(code=4401, reason=E.AUTH_LOGIN_REQUIRED)
         return
     await realtime_hub.connect(websocket)
     try:
@@ -882,7 +883,7 @@ async def api_sync_messages(
             })
         count = await save_messages_batch(batch) if batch else 0
         return {"synced": count}
-    raise HTTPException(status_code=400, detail="Desteklenmeyen platform")
+    raise HTTPException(status_code=400, detail=E.UNSUPPORTED_PLATFORM)
 
 
 @app.post("/api/messages/sync-all/{platform}")
@@ -895,7 +896,7 @@ async def api_sync_all_messages(
 ):
     await _check_panel_auth(request)
     if platform != Platform.WHATSAPP.value:
-        raise HTTPException(status_code=400, detail="Şu an sadece WhatsApp toplu senkron destekleniyor")
+        raise HTTPException(status_code=400, detail=E.SYNC_WHATSAPP_ONLY)
     aid = await _resolve_whatsapp_account(account_id)
     try:
         data = await whatsapp_service.export_all(aid, offset=offset, limit=chunk_size)
@@ -1136,11 +1137,11 @@ async def test_send_naber(request: Request):
         raise HTTPException(status_code=404, detail="Not found")
     await _check_panel_auth(request)
     if not TELEGRAM_TEST_PHONE:
-        raise HTTPException(status_code=400, detail="TELEGRAM_TEST_PHONE ayarlanmamış")
+        raise HTTPException(status_code=400, detail=E.TEST_PHONE_NOT_SET)
     if not ALLOW_OUTBOUND_MESSAGES:
         raise HTTPException(
             status_code=403,
-            detail="Test modu aktif: gerçek mesaj gönderimi kapalı. ALLOW_OUTBOUND_MESSAGES=true yapın.",
+            detail=E.OUTBOUND_TEST_MODE,
         )
     try:
         target = await telegram_service.resolve_phone_chat(TELEGRAM_TEST_PHONE)
@@ -1319,7 +1320,7 @@ async def create_scheduled(request: Request, body: ScheduleRequest):
 
     if is_random_daily:
         if not body.window_start_time or not body.window_end_time:
-            raise HTTPException(status_code=400, detail="Rastgele günlük için başlangıç ve bitiş saati gerekli")
+            raise HTTPException(status_code=400, detail=E.SCHEDULE_RANDOM_WINDOW)
         try:
             validate_window(body.window_start_time, body.window_end_time)
         except ValueError as exc:
@@ -1327,13 +1328,13 @@ async def create_scheduled(request: Request, body: ScheduleRequest):
         scheduled_at = utc_now()
     else:
         if body.scheduled_at is None:
-            raise HTTPException(status_code=400, detail="Gönderim zamanı gerekli")
+            raise HTTPException(status_code=400, detail=E.SCHEDULE_TIME_REQUIRED)
         scheduled_at = from_client_datetime(body.scheduled_at)
         if scheduled_at <= utc_now() and body.repeat_type == RepeatType.NONE.value:
-            raise HTTPException(status_code=400, detail="Zamanlanmış tarih gelecekte olmalı (Türkiye saati)")
+            raise HTTPException(status_code=400, detail=E.SCHEDULE_FUTURE_REQUIRED)
 
     if body.repeat_type == RepeatType.CUSTOM.value and not body.repeat_interval_minutes:
-        raise HTTPException(status_code=400, detail="Özel tekrar için dakika aralığı gerekli")
+        raise HTTPException(status_code=400, detail=E.SCHEDULE_CUSTOM_INTERVAL)
 
     job_account_id = await _resolve_platform_account(body.platform, body.account_id)
 
@@ -1393,9 +1394,9 @@ async def update_scheduled(request: Request, job_id: int, body: ScheduleUpdateRe
     async with async_session() as session:
         job = await session.get(ScheduledMessage, job_id)
         if not job:
-            raise HTTPException(status_code=404, detail="Mesaj bulunamadı")
+            raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
         if not job.is_active:
-            raise HTTPException(status_code=400, detail="Aktif olmayan mesaj düzenlenemez")
+            raise HTTPException(status_code=400, detail=E.MESSAGE_NOT_EDITABLE)
 
         if body.message_text is not None:
             job.message_text = body.message_text

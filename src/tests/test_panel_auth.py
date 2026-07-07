@@ -109,7 +109,7 @@ class TestPanelAuth:
             "password": "wrongpass1",
         })
         assert res.status_code == 401
-        assert "Hatalı" in res.json()["detail"]
+        assert res.json()["detail"] == "error.auth.invalidCredentials"
 
     @pytest.mark.asyncio
     async def test_weak_setup_password_rejected(self, auth_client):
