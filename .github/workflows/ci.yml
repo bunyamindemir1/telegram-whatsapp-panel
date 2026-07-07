@@ -21,10 +21,10 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r config/requirements.txt
 
       - name: Run tests
-        run: pytest -q -m "not e2e"
+        run: pytest -q -c config/pytest.ini -m "not e2e"
 
       - name: Validate locales
         run: python scripts/validate_locales.py
@@ -41,12 +41,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r config/requirements.txt
           pip install pytest-playwright==0.6.2
           playwright install chromium
 
       - name: E2E smoke tests
-        run: pytest tests/e2e -q -m e2e
+        run: pytest tests/e2e -q -c config/pytest.ini -m e2e
 
   bridge:
     runs-on: ubuntu-latest

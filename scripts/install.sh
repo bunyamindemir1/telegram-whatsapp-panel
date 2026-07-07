@@ -21,7 +21,7 @@ fi
 source .venv/bin/activate
 
 (
-  pip install -q -r requirements.txt
+  pip install -q -r config/requirements.txt
   echo "  ✓ Python"
 ) &
 PID_PY=$!

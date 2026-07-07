@@ -14,7 +14,7 @@ Evet:
 
 ```bash
 make setup -- --local
-source .venv/bin/activate && python run.py
+source .venv/bin/activate && python scripts/run.py
 # ayrı terminal: cd whatsapp-bridge && node server.js
 ```
 
@@ -34,7 +34,7 @@ veya `.env` içinde `PORT=8080` değiştirin.
 
 ### İnternete açmak güvenli mi?
 
-Önce [SECURITY.md](../SECURITY.md) okuyun. Öneriler:
+Önce [SECURITY.md](SECURITY.md) okuyun. Öneriler:
 
 - Güçlü `PANEL_ADMIN_PASSWORD`
 - `BRIDGE_SECRET` ve `SESSION_SECRET` değiştirin
@@ -84,4 +84,4 @@ Yakında — `.github/FUNDING.yml` dosyasına sponsor linkinizi ekleyebilirsiniz
 
 ### Nasıl katkıda bulunurum?
 
-[CONTRIBUTING.md](../CONTRIBUTING.md)
+[CONTRIBUTING.md](CONTRIBUTING.md)

@@ -21,15 +21,15 @@ smoke:
 
 dev:
 	@test -d .venv || $(PYTHON) -m venv .venv
-	@. .venv/bin/activate && pip install -q -r requirements.txt
+	@. .venv/bin/activate && pip install -q -r config/requirements.txt
 	@cd whatsapp-bridge && npm install --silent
-	@. .venv/bin/activate && $(PYTHON) run.py
+	@. .venv/bin/activate && $(PYTHON) scripts/run.py
 
 test:
-	@$(PYTHON) -m pytest -q
+	@$(PYTHON) -m pytest -q -c config/pytest.ini
 
 e2e:
-	@$(PYTHON) -m pytest tests/e2e -q -m e2e
+	@$(PYTHON) -m pytest tests/e2e -q -m e2e -c config/pytest.ini
 
 locales:
 	@$(PYTHON) scripts/validate_locales.py

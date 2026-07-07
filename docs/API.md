@@ -88,4 +88,4 @@ Olaylar HTTP POST ile gönderilir. Gövde örneği:
 | 404 | Hesap veya sohbet bulunamadı |
 | 429 | Rate limit |
 
-Güvenlik: [SECURITY.md](../SECURITY.md)
+Güvenlik: [SECURITY.md](SECURITY.md)

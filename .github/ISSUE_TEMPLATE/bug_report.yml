@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Sorunu anlamamıza yardımcı olun. Güvenlik açıkları için lütfen [SECURITY.md](../SECURITY.md) dosyasındaki süreci izleyin.
+        Sorunu anlamamıza yardımcı olun. Güvenlik açıkları için lütfen [SECURITY.md](../docs/SECURITY.md) dosyasındaki süreci izleyin.
 
   - type: dropdown
     id: component
@@ -62,7 +62,7 @@ body:
       options:
         - Docker (make setup)
         - Docker (manuel)
-        - Yerel (python run.py)
+        - Yerel (make quick)
         - Diğer
 
   - type: textarea

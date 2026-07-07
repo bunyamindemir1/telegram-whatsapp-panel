@@ -5,8 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- **Cleaner repo root** — shell scripts moved to `scripts/`, governance docs to `docs/` and `.github/`
-- `pyproject.toml` replaces `pytest.ini`; primary install via `make setup`
+- **Minimal repo root** — only `README.md`, `LICENSE`, `Makefile`, `docker-compose.yml` at top level
+- Config moved to `config/`, panel Dockerfile to `docker/Dockerfile`, `run.py` to `scripts/`
+- `CONTRIBUTING.md` and `SECURITY.md` moved to `docs/`
 
 ### Added
 - **First account wizard** — after login, guided Telegram/WhatsApp connect flow

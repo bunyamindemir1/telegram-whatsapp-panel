@@ -45,7 +45,7 @@ source .venv/bin/activate
 mkdir -p .run data sessions
 
 echo "→ Starting panel (bridge auto-managed)..."
-nohup env NO_RELOAD=1 python run.py > .run/panel.log 2>&1 &
+nohup env NO_RELOAD=1 python scripts/run.py > .run/panel.log 2>&1 &
 echo $! > .run/panel.pid
 
 URL="http://127.0.0.1:${PORT}/api/health"

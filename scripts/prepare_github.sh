@@ -69,7 +69,7 @@ echo "→ Unit tests..."
 echo "→ Bridge syntax..."
 node --check whatsapp-bridge/server.js
 
-if grep -rq "YOUR_USER" README.md docs/ CONTRIBUTING.md .github/ 2>/dev/null; then
+if grep -rq "YOUR_USER" README.md docs/ .github/ 2>/dev/null; then
   echo "WARN: Replace YOUR_USER in README/docs before publishing"
 fi
 

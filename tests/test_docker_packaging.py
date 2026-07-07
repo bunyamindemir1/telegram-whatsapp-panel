@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_dockerfile_copies_locales():
-    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
     assert "COPY locales" in dockerfile, "Dockerfile must COPY locales/ for i18n in containers"
 
 
@@ -20,8 +20,8 @@ def test_governance_files_exist():
     required = [
         "LICENSE",
         "README.md",
-        "CONTRIBUTING.md",
-        "SECURITY.md",
+        "docs/CONTRIBUTING.md",
+        "docs/SECURITY.md",
         ".github/CODE_OF_CONDUCT.md",
         "docs/CHANGELOG.md",
         "docs/SUPPORT.md",

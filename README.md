@@ -5,7 +5,7 @@
 [![CI](https://github.com/bunyamindemir1/telegram-whatsapp-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/bunyamindemir1/telegram-whatsapp-panel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docs/QUICKSTART.md)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](requirements.txt)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](config/requirements.txt)
 [![Languages](https://img.shields.io/badge/languages-15-8B5CF6)](docs/I18N.md)
 
 <p align="center">
@@ -172,14 +172,15 @@ Full API reference: [docs/API.md](docs/API.md)
 
 ```
 telegram-whatsapp-panel/
+├── README.md · LICENSE · Makefile · docker-compose.yml   ← root (4 files)
 ├── app/              FastAPI backend
-├── whatsapp-bridge/  Baileys service
+├── config/           requirements, pytest config
+├── docker/           Dockerfile + entrypoint
+├── docs/             guides, CONTRIBUTING, SECURITY
 ├── locales/          15-language UI strings
-├── docs/             Guides & screenshots
-├── scripts/          setup, install, dev tools
+├── scripts/          setup, install, run.py
 ├── tests/            pytest + Playwright E2E
-├── Makefile          make setup | quick | test
-└── docker-compose.yml
+└── whatsapp-bridge/  Baileys service
 ```
 
 Details: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
@@ -194,7 +195,7 @@ make e2e        # browser tests
 make preflight  # pre-publish checks
 ```
 
-[CONTRIBUTING.md](CONTRIBUTING.md) · [docs/SUPPORT.md](docs/SUPPORT.md) · [docs/FAQ.md](docs/FAQ.md) · [SECURITY.md](SECURITY.md)
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) · [docs/SUPPORT.md](docs/SUPPORT.md) · [docs/FAQ.md](docs/FAQ.md) · [docs/SECURITY.md](docs/SECURITY.md)
 
 ---
 

@@ -18,7 +18,7 @@ Open a [GitHub Issue](https://github.com/bunyamindemir1/telegram-whatsapp-panel/
 
 ## Security issues
 
-Do **not** open public issues for vulnerabilities. See [SECURITY.md](../SECURITY.md).
+Do **not** open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).
 
 ## Community
 

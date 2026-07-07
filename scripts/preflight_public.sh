@@ -18,8 +18,8 @@ section "1. Governance files (OSPO baseline)"
 REQUIRED=(
   LICENSE
   README.md
-  CONTRIBUTING.md
-  SECURITY.md
+  docs/CONTRIBUTING.md
+  docs/SECURITY.md
   .github/CODE_OF_CONDUCT.md
   docs/CHANGELOG.md
   docs/SUPPORT.md
@@ -81,7 +81,7 @@ if grep -q "bunyamindemir1/telegram-whatsapp-panel" README.md; then
 else
   warn "Update README GitHub URLs before publish"
 fi
-if grep -rq "YOUR_USER" README.md docs/ CONTRIBUTING.md .github/ 2>/dev/null; then
+if grep -rq "YOUR_USER" README.md docs/ .github/ 2>/dev/null; then
   warn "Replace YOUR_USER placeholders"
 fi
 
@@ -97,7 +97,7 @@ fi
 
 section "6. Automated tests"
 "$PYTHON" scripts/validate_locales.py
-"$PYTHON" -m pytest -q -m "not e2e"
+"$PYTHON" -m pytest -q -c config/pytest.ini -m "not e2e"
 node --check whatsapp-bridge/server.js
 green "Tests & locale validation passed"
 

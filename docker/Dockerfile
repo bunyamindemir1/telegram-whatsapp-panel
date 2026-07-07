@@ -6,14 +6,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY config/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY templates ./templates
 COPY static ./static
 COPY locales ./locales
-COPY run.py .
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
 
 RUN chmod +x /app/docker/entrypoint.sh \
