@@ -574,6 +574,29 @@ def _dedupe_conversations(convs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return merged
 
 
+async def conversation_notifications_blocked(
+    platform: str,
+    chat_id: str,
+    account_id: Optional[int] = None,
+) -> bool:
+    """Muted or snoozed conversations should not receive auto-replies or follow-ups."""
+    aid = await resolve_account_id(platform, account_id)
+    async with async_session() as session:
+        conv = await session.scalar(
+            select(Conversation).where(
+                Conversation.account_id == aid,
+                Conversation.chat_id == chat_id,
+                Conversation.platform == platform,
+            )
+        )
+        if not conv:
+            return False
+        if getattr(conv, "is_muted", False):
+            return True
+        snooze = getattr(conv, "snoozed_until", None)
+        return bool(snooze and snooze > datetime.utcnow())
+
+
 async def update_conversation_label(
     platform: str,
     chat_id: str,

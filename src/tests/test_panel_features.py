@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from tests.conftest import make_session_factory
 from app.models import JobStatus, Platform, RepeatType, ScheduledMessage
 
 
@@ -333,6 +334,96 @@ async def test_empty_label_returns_i18n_key(panel_client):
     )
     assert res.status_code == 400
     assert res.json()["detail"] == "error.conversation.labelRequired"
+
+
+@pytest.mark.asyncio
+async def test_scheduler_renders_template_before_send(test_engine):
+    from app.scheduler_service import _execute_job
+
+    factory = make_session_factory(test_engine)
+
+    async with factory() as session:
+        job = ScheduledMessage(
+            platform="telegram",
+            chat_id="999",
+            chat_name="Ali",
+            message_text="Merhaba {{chat_name}}",
+            scheduled_at=datetime.utcnow(),
+            repeat_type=RepeatType.NONE.value,
+            status=JobStatus.PENDING.value,
+            is_active=True,
+            next_run_at=datetime.utcnow(),
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        job_id = job.id
+
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def mock_session():
+        async with factory() as s:
+            yield s
+
+    with patch("app.scheduler_service.async_session", mock_session):
+        with patch("app.scheduler_service.send_platform_message", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = {"message_id": "1"}
+            await _execute_job(job_id)
+            mock_send.assert_called_once()
+            assert mock_send.call_args.args[2] == "Merhaba Ali"
+
+
+@pytest.mark.asyncio
+async def test_auto_reply_respects_mute(panel_client):
+    from unittest.mock import AsyncMock, patch
+
+    await panel_client.patch(
+        "/api/conversations/telegram/444/meta?account_id=1",
+        json={"is_muted": True},
+    )
+    with patch("app.auto_reply_service.send_platform_message", new_callable=AsyncMock) as mock_send:
+        from app.auto_reply_service import try_auto_reply
+
+        result = await try_auto_reply(
+            platform="telegram",
+            account_id=1,
+            chat_id="444",
+            text="hello keyword",
+            chat_name="Muted",
+        )
+        assert result is None
+        mock_send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_follow_up_dedup_per_chat(panel_client):
+    await panel_client.post(
+        "/api/follow-ups",
+        json={
+            "platform": "telegram",
+            "chat_id": "555",
+            "chat_name": "X",
+            "reminder_text": "Ping",
+            "wait_hours": 24,
+            "account_id": 1,
+        },
+    )
+    await panel_client.post(
+        "/api/follow-ups",
+        json={
+            "platform": "telegram",
+            "chat_id": "555",
+            "chat_name": "X",
+            "reminder_text": "Ping 2",
+            "wait_hours": 24,
+            "account_id": 1,
+        },
+    )
+    listed = await panel_client.get("/api/follow-ups?platform=telegram&status=pending")
+    pending = [f for f in listed.json() if f["chat_id"] == "555"]
+    assert len(pending) == 1
+    assert pending[0]["reminder_text"] == "Ping 2"
 
 
 @pytest.mark.asyncio

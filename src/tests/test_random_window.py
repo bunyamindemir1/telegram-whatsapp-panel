@@ -21,7 +21,7 @@ def _ist_day(year, month, day):
 
 class TestRandomWindow:
     def test_validate_window_rejects_inverted(self):
-        with pytest.raises(ValueError, match="sonra"):
+        with pytest.raises(ValueError, match="error.schedule.windowOrder"):
             validate_window("08:00", "07:00")
 
     def test_validate_window_allows_one_minute_slot(self):

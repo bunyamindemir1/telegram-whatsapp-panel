@@ -534,5 +534,14 @@
   "toast.backupExported": "Backup download started",
   "toast.backupImported": "Backup imported ({count} items)",
   "toast.followUpCreated": "Follow-up reminder set",
-  "toast.autoReplyUpdated": "Auto-reply updated"
+  "toast.autoReplyUpdated": "Auto-reply updated",
+  "error.account.invalid": "Invalid account",
+  "error.admin.required": "Admin access required",
+  "error.message.sending": "Message is already being sent, please wait",
+  "error.schedule.timeFormat": "Time format must be HH:MM",
+  "error.schedule.invalidTime": "Invalid time range",
+  "error.schedule.windowOrder": "End time must be after start time",
+  "error.schedule.windowMinWidth": "Window must be at least 1 minute wide",
+  "error.schedule.windowPastToday": "Today's window has passed; schedule for tomorrow",
+  "error.schedule.windowNoSlot": "No available random time slot found"
 }

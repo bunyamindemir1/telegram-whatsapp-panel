@@ -9,6 +9,7 @@ from typing import Any, Optional
 from sqlalchemy import select
 
 from app.database import async_session
+from app.message_store import conversation_notifications_blocked
 from app.messaging import send_platform_message
 from app.models import AutoReplyRule
 
@@ -28,6 +29,16 @@ def _matches(keyword: str, text: str, mode: str) -> bool:
         except re.error:
             return False
     return kw.lower() in body.lower()
+
+
+def _load_chat_cooldowns(raw: Optional[str]) -> dict[str, str]:
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except json.JSONDecodeError:
+        return {}
 
 
 async def list_auto_reply_rules(platform: Optional[str] = None) -> list[dict[str, Any]]:
@@ -128,6 +139,8 @@ async def try_auto_reply(
 ) -> Optional[dict[str, Any]]:
     if not text or not text.strip():
         return None
+    if await conversation_notifications_blocked(platform, chat_id, account_id):
+        return None
 
     async with async_session() as session:
         result = await session.execute(
@@ -144,10 +157,26 @@ async def try_auto_reply(
             continue
         if not _matches(rule.keyword, text, rule.match_mode):
             continue
-        if rule.last_triggered_at:
-            cooldown = timedelta(minutes=rule.cooldown_minutes or 60)
-            if now - rule.last_triggered_at < cooldown:
+
+        cooldown = timedelta(minutes=rule.cooldown_minutes or 60)
+        async with async_session() as session:
+            db_rule = await session.get(AutoReplyRule, rule.id)
+            if not db_rule:
                 continue
+            chat_cooldowns = _load_chat_cooldowns(getattr(db_rule, "chat_cooldowns_json", None))
+            last_raw = chat_cooldowns.get(chat_id)
+            if last_raw:
+                try:
+                    last_at = datetime.fromisoformat(last_raw.replace("Z", ""))
+                    if now - last_at < cooldown:
+                        continue
+                except ValueError:
+                    pass
+            chat_cooldowns[chat_id] = now.isoformat()
+            db_rule.chat_cooldowns_json = json.dumps(chat_cooldowns)
+            db_rule.last_triggered_at = now
+            await session.commit()
+
         try:
             sent = await send_platform_message(
                 platform,
@@ -157,11 +186,6 @@ async def try_auto_reply(
                 chat_type=chat_type,
                 account_id=account_id,
             )
-            async with async_session() as session:
-                db_rule = await session.get(AutoReplyRule, rule.id)
-                if db_rule:
-                    db_rule.last_triggered_at = now
-                    await session.commit()
             return {"rule_id": rule.id, "sent": sent}
         except Exception as exc:
             logger.warning("Auto-reply failed rule %s: %s", rule.id, exc)

@@ -534,5 +534,14 @@
   "error.locale.notSupported": "Desteklenmeyen dil",
   "error.csv.headerRequired": "CSV dosyasında başlık satırı olmalı",
   "error.bridge.eventDataRequired": "Mesaj olayı için veri gerekli",
-  "error.notFound": "Bulunamadı"
+  "error.notFound": "Bulunamadı",
+  "error.account.invalid": "Geçersiz hesap",
+  "error.admin.required": "Yönetici yetkisi gerekli",
+  "error.message.sending": "Mesaj şu anda gönderiliyor, lütfen bekleyin",
+  "error.schedule.timeFormat": "Saat formatı HH:MM olmalı",
+  "error.schedule.invalidTime": "Geçersiz saat aralığı",
+  "error.schedule.windowOrder": "Bitiş saati başlangıçtan sonra olmalı",
+  "error.schedule.windowMinWidth": "Pencere en az 1 dakika genişliğinde olmalı",
+  "error.schedule.windowPastToday": "Bugünkü pencere geçmiş; yarın için planlayın",
+  "error.schedule.windowNoSlot": "Uygun rastgele zaman bulunamadı"
 }

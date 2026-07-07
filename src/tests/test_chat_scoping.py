@@ -134,7 +134,7 @@ class TestConversationIsolation:
     @pytest.mark.asyncio
     async def test_save_message_rejects_wrong_platform_account(self, scoped_session):
         tg = await create_account(Platform.TELEGRAM.value, "TG", make_default=True)
-        with pytest.raises(ValueError, match="Geçersiz hesap"):
+        with pytest.raises(ValueError, match="error.account.invalid"):
             await save_message(
                 "whatsapp", "jid@s.whatsapp.net", "m1", "x", False, datetime.utcnow(),
                 account_id=tg["id"],
@@ -171,7 +171,7 @@ class TestWhatsAppInternalSync:
         assert len(msgs) == 1
         assert msgs[0]["text"] == "Merhaba bridge"
 
-        with pytest.raises(ValueError, match="Geçersiz hesap"):
+        with pytest.raises(ValueError, match="error.account.invalid"):
             await get_messages("whatsapp", "905551111111@s.whatsapp.net", account_id=1)
 
 

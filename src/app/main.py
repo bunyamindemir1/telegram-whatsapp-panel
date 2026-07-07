@@ -155,6 +155,14 @@ async def _check_panel_auth(request: Request) -> None:
     await panel_auth.check_panel_auth(request)
 
 
+async def _check_admin(request: Request) -> None:
+    if not panel_auth.auth_required():
+        return
+    await _check_panel_auth(request)
+    if not request.session.get("is_admin"):
+        raise HTTPException(status_code=403, detail=E.ADMIN_REQUIRED)
+
+
 def _serialize_job(j: ScheduledMessage) -> dict:
     return {
         "id": j.id,
@@ -1415,10 +1423,13 @@ async def scheduled_calendar(
     month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
 ):
     await _check_panel_auth(request)
-    year, mon = map(int, month.split("-"))
     from calendar import monthrange
-    start = datetime(year, mon, 1)
-    end = datetime(year, mon, monthrange(year, mon)[1], 23, 59, 59)
+
+    from app.utils.datetime_utils import IST, to_utc_naive
+
+    year, mon = map(int, month.split("-"))
+    start = to_utc_naive(datetime(year, mon, 1, tzinfo=IST))
+    end = to_utc_naive(datetime(year, mon, monthrange(year, mon)[1], 23, 59, 59, tzinfo=IST))
     async with async_session() as session:
         result = await session.execute(
             select(ScheduledMessage).where(
@@ -1598,6 +1609,8 @@ async def send_scheduled_now(request: Request, job_id: int):
         return {"ok": True}
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1608,7 +1621,7 @@ async def retry_scheduled(request: Request, job_id: int):
     try:
         await retry_job(job_id)
         return {"ok": True}
-    except Exception as exc:
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -1830,7 +1843,7 @@ async def api_activity_log(request: Request, limit: int = Query(50, le=200)):
 
 @app.get("/api/admin/backup")
 async def api_export_backup(request: Request):
-    await _check_panel_auth(request)
+    await _check_admin(request)
     from app.backup_service import export_panel_backup
     data = await export_panel_backup()
     return Response(
@@ -1842,7 +1855,7 @@ async def api_export_backup(request: Request):
 
 @app.post("/api/admin/restore")
 async def api_import_backup(request: Request, body: BackupImportRequest):
-    await _check_panel_auth(request)
+    await _check_admin(request)
     from app.backup_service import import_panel_backup
     from app.activity_log import log_activity
     counts = await import_panel_backup(body.data, merge=body.merge)

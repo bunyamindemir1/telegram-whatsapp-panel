@@ -5,6 +5,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
+from app import error_codes as E
 from app.utils.datetime_utils import IST, UTC
 
 MAX_PICK_ATTEMPTS = 200
@@ -13,10 +14,10 @@ MAX_PICK_ATTEMPTS = 200
 def parse_hhmm(value: str) -> Tuple[int, int]:
     parts = value.strip().split(":")
     if len(parts) != 2:
-        raise ValueError("Saat formatı HH:MM olmalı")
+        raise ValueError(E.SCHEDULE_TIME_FORMAT)
     hour, minute = int(parts[0]), int(parts[1])
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
-        raise ValueError("Geçersiz saat aralığı")
+        raise ValueError(E.SCHEDULE_INVALID_TIME)
     return hour, minute
 
 
@@ -38,9 +39,9 @@ def validate_window(start: str, end: str) -> None:
     start_sec = time_to_seconds(sh, sm)
     end_sec = time_to_seconds(eh, em, 59)
     if end_sec <= start_sec:
-        raise ValueError("Bitiş saati başlangıçtan sonra olmalı")
+        raise ValueError(E.SCHEDULE_WINDOW_ORDER)
     if end_sec - start_sec < 59:
-        raise ValueError("Pencere en az 1 dakika genişliğinde olmalı")
+        raise ValueError(E.SCHEDULE_WINDOW_MIN)
 
 
 def utc_naive_to_istanbul(dt: datetime) -> datetime:
@@ -90,14 +91,14 @@ def pick_random_in_window(
             ) + 1)
 
     if min_sec > end_sec:
-        raise ValueError("Bugünkü pencere geçmiş; yarın için planlayın")
+        raise ValueError(E.SCHEDULE_WINDOW_PAST)
 
     candidates = [
         sec for sec in range(min_sec, end_sec + 1)
         if sec != exclude_sec
     ]
     if not candidates:
-        raise ValueError("Uygun rastgele zaman bulunamadı")
+        raise ValueError(E.SCHEDULE_WINDOW_SLOT)
 
     pick_sec = rng.choice(candidates)
     hour, minute, second = seconds_to_time(pick_sec)

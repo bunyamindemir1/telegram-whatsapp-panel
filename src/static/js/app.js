@@ -3,6 +3,22 @@ let currentPlatform = "telegram";
 function threadPlatform() {
   return activeThreadChat?.platform || currentPlatform;
 }
+
+function chatAccountId(chat, platform = chat?.platform || currentPlatform) {
+  return chat?.account_id ?? getAccountId(platform);
+}
+
+function isSameChat(c, chat = activeThreadChat) {
+  if (!chat || !c) return false;
+  const plat = chat.platform || currentPlatform;
+  const aid = chatAccountId(chat, plat);
+  const cPlat = c.platform || currentPlatform;
+  return (
+    String(c.id) === String(chat.id)
+    && cPlat === plat
+    && chatAccountId(c, cPlat) === aid
+  );
+}
 let platformSwitching = false;
 let accountSwitching = false;
 let currentAccountId = { telegram: 1, whatsapp: 1 };
@@ -1525,7 +1541,7 @@ function handleRealtimeEvent(event) {
   if (event.type === "message" && event.data) {
     const m = event.data;
     const msgAccountId = m.account_id ?? event.account_id ?? getAccountId(m.platform);
-    if (activeThreadChat && m.chat_id === activeThreadChat.id && m.platform === currentPlatform && msgAccountId === getAccountId()) {
+    if (activeThreadChat && m.chat_id === activeThreadChat.id && m.platform === threadPlatform() && msgAccountId === getAccountId(m.platform)) {
       appendMessageBubble(m);
     }
     if (document.getElementById("tab-chats")?.classList.contains("active")) {
@@ -1686,7 +1702,7 @@ function renderChatListItems(chats) {
     const subtitle = disp.subtitle ? `<div class="chat-item-sub muted small">${escapeHtml(disp.subtitle)}</div>` : "";
     const pin = c.is_pinned ? `<span class="chat-pin-badge">${icon("star", { size: 12 })}</span>` : "";
     const platBadge = unifiedInboxMode && c.platform ? `<span class="platform-tag ${c.platform} mini">${PLATFORM_LABELS[c.platform] || c.platform}</span>` : "";
-    return `<div class="chat-item wa-style ${activeThreadChat?.id === c.id ? "selected" : ""}" data-chat-id="${encodeURIComponent(c.id)}" data-platform="${c.platform || currentPlatform}" onclick="openThreadFromEl(this)">
+    return `<div class="chat-item wa-style ${isSameChat(c) ? "selected" : ""}" data-chat-id="${encodeURIComponent(c.id)}" data-platform="${c.platform || currentPlatform}" onclick="openThreadFromEl(this)">
       <div class="chat-item-avatar ${avatarClass}">${escapeHtml(chatInitials(disp.title))}</div>
       <div class="chat-item-body">
         <div class="chat-item-top">
@@ -2209,19 +2225,19 @@ async function syncAllMessages(silent = false) {
   }
 }
 
-function openThreadFromEl(el) {
+async function openThreadFromEl(el) {
   if (unifiedInboxMode && el.dataset.platform && el.dataset.platform !== currentPlatform) {
-    setPlatform(el.dataset.platform);
+    await setPlatform(el.dataset.platform);
   }
-  openThread(decodeURIComponent(el.dataset.chatId));
+  await openThread(decodeURIComponent(el.dataset.chatId));
 }
 
-function openThreadFromSearch(chatId, platform) {
+async function openThreadFromSearch(chatId, platform) {
   const plat = platform || currentPlatform;
   if (plat !== currentPlatform) {
-    setPlatform(plat);
+    await setPlatform(plat);
   }
-  openThread(decodeURIComponent(chatId));
+  await openThread(decodeURIComponent(chatId));
 }
 
 function openRenameChatModal() {
@@ -2255,7 +2271,7 @@ async function confirmRenameChat() {
     });
     activeThreadChat.name = r.name;
     activeThreadChat.chat_name_custom = true;
-    const idx = chatListCache.findIndex((c) => c.id === activeThreadChat.id);
+    const idx = chatListCache.findIndex((c) => isSameChat(c));
     if (idx >= 0) chatListCache[idx] = { ...chatListCache[idx], name: r.name, chat_name_custom: true };
     closeRenameChatModal();
     const disp = getChatDisplay(activeThreadChat);
@@ -2835,7 +2851,7 @@ document.getElementById("message-text")?.addEventListener("input", (e) => {
 });
 
 document.getElementById("chat-reply")?.addEventListener("input", (e) => {
-  if (activeThreadChat?.id) saveDraft(`chat-reply:${currentPlatform}:${activeThreadChat.id}`, e.target.value);
+  if (activeThreadChat?.id) saveDraft(`chat-reply:${threadPlatform()}:${activeThreadChat.id}`, e.target.value);
 });
 
 // ─── Panel feature helpers ───────────────────────────
@@ -2877,7 +2893,7 @@ async function togglePinChat() {
     });
     activeThreadChat.is_pinned = r.is_pinned;
     document.getElementById("btn-pin-chat")?.classList.toggle("active", r.is_pinned);
-    chatListCache = chatListCache.map((c) => (c.id === activeThreadChat.id ? { ...c, is_pinned: r.is_pinned } : c));
+    chatListCache = chatListCache.map((c) => (isSameChat(c) ? { ...c, is_pinned: r.is_pinned } : c));
     loadChatThread(false);
     toastT(r.is_pinned ? "toast.pinned" : "toast.unpinned", "success");
   } catch (e) { toast(e.message, "error"); }
@@ -2893,7 +2909,7 @@ async function toggleMuteChat() {
     });
     activeThreadChat.is_muted = r.is_muted;
     document.getElementById("btn-mute-chat")?.classList.toggle("active", r.is_muted);
-    chatListCache = chatListCache.map((c) => (c.id === activeThreadChat.id ? { ...c, is_muted: r.is_muted } : c));
+    chatListCache = chatListCache.map((c) => (isSameChat(c) ? { ...c, is_muted: r.is_muted } : c));
     toastT(next ? "toast.muted" : "toast.unmuted", "success");
   } catch (e) { toast(e.message, "error"); }
 }
@@ -2980,7 +2996,7 @@ async function saveChatNotes() {
     });
     activeThreadChat.notes = r.notes;
     activeThreadChat.tags = r.tags;
-    chatListCache = chatListCache.map((c) => (c.id === activeThreadChat.id ? { ...c, notes: r.notes, tags: r.tags } : c));
+    chatListCache = chatListCache.map((c) => (isSameChat(c) ? { ...c, notes: r.notes, tags: r.tags } : c));
     closeNotesModal();
     toastT("toast.notesSaved", "success");
   } catch (e) { toast(e.message, "error"); }

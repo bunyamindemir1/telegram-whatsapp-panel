@@ -147,6 +147,7 @@ class AutoReplyRule(Base):
     cooldown_minutes: Mapped[int] = mapped_column(Integer, default=60)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_triggered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    chat_cooldowns_json: Mapped[Optional[str]] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

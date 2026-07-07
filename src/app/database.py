@@ -246,6 +246,13 @@ async def _migrate(conn) -> None:
     if "category" not in tmpl_cols:
         await conn.execute(text("ALTER TABLE message_templates ADD COLUMN category TEXT DEFAULT 'general'"))
 
+    ar = await conn.execute(text("PRAGMA table_info(auto_reply_rules)"))
+    ar_cols = {row[1] for row in ar.fetchall()}
+    if ar_cols and "chat_cooldowns_json" not in ar_cols:
+        await conn.execute(text(
+            "ALTER TABLE auto_reply_rules ADD COLUMN chat_cooldowns_json TEXT DEFAULT '{}'"
+        ))
+
     for table, ddl in (
         ("follow_up_reminders", """
             CREATE TABLE follow_up_reminders (

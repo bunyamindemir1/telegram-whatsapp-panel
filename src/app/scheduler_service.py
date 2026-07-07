@@ -6,6 +6,7 @@ from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import select
 
 from app.database import async_session
+from app import error_codes as E
 from app.models import JobStatus, RepeatType, ScheduledMessage
 from app.messaging import send_platform_message
 from app.random_window import compute_next_random_daily
@@ -124,7 +125,7 @@ async def _execute_job(job_id: int) -> None:
                 result = await send_platform_message(
                     job.platform,
                     job.chat_id,
-                    job.message_text,
+                    rendered,
                     chat_name=job.chat_name,
                     chat_type=job.chat_type,
                     allow_simulate=True,
@@ -192,7 +193,7 @@ def prepare_random_daily_job(job: ScheduledMessage) -> None:
     from app.random_window import compute_initial_random_run, validate_window
 
     if not job.window_start_time or not job.window_end_time:
-        raise ValueError("Rastgele günlük gönderim için zaman penceresi gerekli")
+        raise ValueError(E.SCHEDULE_RANDOM_WINDOW)
     validate_window(job.window_start_time, job.window_end_time)
     run_at = compute_initial_random_run(
         job.window_start_time,
@@ -221,7 +222,7 @@ async def retry_job(job_id: int) -> None:
     async with async_session() as session:
         job = await session.get(ScheduledMessage, job_id)
         if not job:
-            raise ValueError("Mesaj bulunamadı")
+            raise ValueError(E.MESSAGE_NOT_FOUND)
 
         job.is_active = True
         job.status = JobStatus.PENDING.value
@@ -257,12 +258,12 @@ async def load_pending_jobs() -> None:
 
 async def send_now(job_id: int) -> None:
     if job_id in _job_locks:
-        raise RuntimeError("Mesaj şu anda gönderiliyor, lütfen bekleyin")
+        raise RuntimeError(E.MESSAGE_SENDING)
 
     async with async_session() as session:
         job = await session.get(ScheduledMessage, job_id)
         if not job:
-            raise ValueError("Mesaj bulunamadı")
+            raise ValueError(E.MESSAGE_NOT_FOUND)
         job.next_run_at = ensure_future(utc_now())
         job.is_active = True
         job.status = JobStatus.PENDING.value

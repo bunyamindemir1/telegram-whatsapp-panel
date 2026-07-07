@@ -10,6 +10,7 @@ from typing import Any, Optional, Union
 
 from sqlalchemy import select, update
 
+from app import error_codes as E
 from app.config import DATA_DIR, SESSIONS_DIR
 from app.database import async_session
 from app.models import Platform, PlatformAccount
@@ -109,7 +110,7 @@ async def resolve_account_id(platform: str, account_id: Optional[int] = None) ->
     if account_id is not None:
         acc = await get_account(account_id)
         if not acc or not acc.is_active or acc.platform != platform:
-            raise ValueError("Geçersiz hesap")
+            raise ValueError(E.ACCOUNT_INVALID)
         return account_id
     return await get_default_account_id(platform)
 
@@ -165,7 +166,7 @@ async def update_account_meta(
     async with async_session() as session:
         acc = await session.get(PlatformAccount, account_id)
         if not acc or not acc.is_active:
-            raise ValueError("Hesap bulunamadı")
+            raise ValueError(E.ACCOUNT_NOT_FOUND)
         if label is not None:
             acc.label = label.strip() or acc.label
         if display_name is not None:
@@ -186,7 +187,7 @@ async def set_default_account(account_id: int) -> dict[str, Any]:
     async with async_session() as session:
         acc = await session.get(PlatformAccount, account_id)
         if not acc or not acc.is_active:
-            raise ValueError("Hesap bulunamadı")
+            raise ValueError(E.ACCOUNT_NOT_FOUND)
         await session.execute(
             update(PlatformAccount)
             .where(PlatformAccount.platform == acc.platform)
@@ -231,7 +232,7 @@ def legacy_session_exists() -> bool:
 async def get_bridge_id(account_id: int) -> str:
     acc = await get_account(account_id)
     if not acc or not acc.is_active:
-        raise ValueError("Geçersiz hesap")
+        raise ValueError(E.ACCOUNT_INVALID)
     return acc.bridge_id or _slug_bridge_id(account_id)
 
 

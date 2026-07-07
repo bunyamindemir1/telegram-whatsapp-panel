@@ -7,6 +7,7 @@ from typing import Any, Optional
 from sqlalchemy import select, update
 
 from app.database import async_session
+from app.message_store import conversation_notifications_blocked
 from app.messaging import send_platform_message
 from app.models import ChatMessage, FollowUpReminder
 
@@ -24,6 +25,7 @@ async def create_follow_up(
     due_at: Optional[datetime] = None,
     anchor_at: Optional[datetime] = None,
 ) -> dict[str, Any]:
+    await cancel_follow_ups_for_chat(platform, chat_id, account_id)
     now = datetime.utcnow()
     anchor = anchor_at or now
     due = due_at or (now + timedelta(hours=max(1, wait_hours)))
@@ -121,20 +123,40 @@ async def _has_inbound_since(
         return (await session.scalar(stmt.limit(1))) is not None
 
 
+async def _claim_follow_up(follow_up_id: int) -> Optional[FollowUpReminder]:
+    async with async_session() as session:
+        result = await session.execute(
+            update(FollowUpReminder)
+            .where(
+                FollowUpReminder.id == follow_up_id,
+                FollowUpReminder.status == "pending",
+            )
+            .values(status="processing")
+        )
+        if not result.rowcount:
+            return None
+        await session.commit()
+        return await session.get(FollowUpReminder, follow_up_id)
+
+
 async def process_due_follow_ups() -> int:
     now = datetime.utcnow()
     triggered = 0
     async with async_session() as session:
         rows = (
             await session.execute(
-                select(FollowUpReminder).where(
+                select(FollowUpReminder.id).where(
                     FollowUpReminder.status == "pending",
                     FollowUpReminder.due_at <= now,
                 )
             )
         ).scalars().all()
 
-    for row in rows:
+    for follow_up_id in rows:
+        row = await _claim_follow_up(follow_up_id)
+        if not row:
+            continue
+
         if await _has_inbound_since(row.platform, row.chat_id, row.account_id, row.anchor_at):
             async with async_session() as session:
                 db_row = await session.get(FollowUpReminder, row.id)
@@ -142,6 +164,15 @@ async def process_due_follow_ups() -> int:
                     db_row.status = "cancelled"
                     await session.commit()
             continue
+
+        if await conversation_notifications_blocked(row.platform, row.chat_id, row.account_id):
+            async with async_session() as session:
+                db_row = await session.get(FollowUpReminder, row.id)
+                if db_row:
+                    db_row.status = "cancelled"
+                    await session.commit()
+            continue
+
         try:
             await send_platform_message(
                 row.platform,
@@ -171,6 +202,11 @@ async def process_due_follow_ups() -> int:
             triggered += 1
         except Exception as exc:
             logger.warning("Follow-up %s failed: %s", row.id, exc)
+            async with async_session() as session:
+                db_row = await session.get(FollowUpReminder, row.id)
+                if db_row:
+                    db_row.status = "pending"
+                    await session.commit()
     return triggered
 
 

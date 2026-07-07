@@ -159,6 +159,12 @@ async def import_panel_backup(data: dict[str, Any], *, merge: bool = True) -> di
         async with async_session() as session:
             db_job = await session.get(ScheduledMessage, jid)
             if db_job:
+                from app.models import RepeatType
+                from app.scheduler_service import prepare_random_daily_job, schedule_message
+
+                if db_job.repeat_type == RepeatType.RANDOM_DAILY.value:
+                    prepare_random_daily_job(db_job)
+                    await session.commit()
                 await schedule_message(db_job)
                 await session.commit()
         counts["scheduled"] += 1
