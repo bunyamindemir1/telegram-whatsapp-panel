@@ -10,8 +10,8 @@ SRC_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = SRC_DIR.parent
 BASE_DIR = SRC_DIR
 
-SESSIONS_DIR = REPO_ROOT / "sessions"
-DATA_DIR = REPO_ROOT / "data"
+SESSIONS_DIR = Path(os.getenv("SESSIONS_DIR", REPO_ROOT / "sessions"))
+DATA_DIR = Path(os.getenv("DATA_DIR", REPO_ROOT / "data"))
 DB_PATH = DATA_DIR / "telegram_panel.db"
 WHATSAPP_BRIDGE_DIR = SRC_DIR / "whatsapp-bridge"
 

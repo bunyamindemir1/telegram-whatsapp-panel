@@ -831,7 +831,7 @@ async function showAccountConnectPanel(accountId) {
   const panel = document.getElementById("account-detail-panel");
   panel?.classList.remove("hidden");
   const acc = (accountsCache[currentPlatform] || []).find((a) => a.id === accountId);
-  const label = acc?.label || `Hesap ${accountId}`;
+  const label = acc?.label || tt("account.fallbackLabel", { id: accountId });
   document.getElementById("auth-connected-label").textContent = `— ${label}`;
   document.getElementById("auth-form-label").textContent = `— ${label}`;
   document.querySelectorAll(".tg-auth-field").forEach((el) => {
@@ -1765,6 +1765,7 @@ async function updateSetupBanner() {
 }
 
 function showAccountSetupOverlay(status) {
+  if (localStorage.getItem("mesaj_account_setup_dismissed")) return;
   if (accountSetupDismissed || !status?.needs_account_setup) return;
   accountSetupPlatform = null;
   document.getElementById("account-setup-step-pick")?.classList.add("active");
@@ -1775,6 +1776,7 @@ function showAccountSetupOverlay(status) {
 
 function dismissAccountSetup() {
   accountSetupDismissed = true;
+  localStorage.setItem("mesaj_account_setup_dismissed", "1");
   document.getElementById("account-setup-overlay")?.classList.add("hidden");
 }
 
@@ -1854,7 +1856,10 @@ async function initPostLoginFlow() {
     const s = await api("/api/panel/status");
     await updateSetupBanner();
     if (s.needs_account_setup) {
-      accountSetupDismissed = false;
+      if (localStorage.getItem("mesaj_account_setup_dismissed")) {
+        initOnboarding();
+        return;
+      }
       showAccountSetupOverlay(s);
       return;
     }
@@ -2386,7 +2391,7 @@ async function testSendNaber() {
     toastT("test.naberSent", "success", { name: r.target.chat_name });
   } catch (e) {
     toast(e.message, "error");
-    if (e.message.includes("error.outbound") || e.message.includes("Test modu")) {
+    if (e.message.includes("error.outbound")) {
       showStatus("auth-status", tt("test.safeMode"), "error");
     }
   }

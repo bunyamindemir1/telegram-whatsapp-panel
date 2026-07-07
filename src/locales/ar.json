@@ -440,5 +440,6 @@
   "error.webhook.notFound": "Webhook not found",
   "error.whatsapp.notConnected": "WhatsApp is not connected",
   "error.whatsapp.missingFields": "Recipient and message are required",
-  "error.whatsapp.missingMediaFields": "Recipient and media path are required"
+  "error.whatsapp.missingMediaFields": "Recipient and media path are required",
+  "account.fallbackLabel": "Account {id}"
 }

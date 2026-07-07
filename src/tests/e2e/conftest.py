@@ -1,7 +1,20 @@
 """Playwright fixtures for E2E tests against the FastAPI app."""
 
+import os
+import tempfile
 import threading
 import time
+from pathlib import Path
+
+_e2e_root = Path(tempfile.mkdtemp(prefix="panel_e2e_"))
+os.environ["DATA_DIR"] = str(_e2e_root / "data")
+os.environ["SESSIONS_DIR"] = str(_e2e_root / "sessions")
+os.environ["REQUIRE_PANEL_AUTH"] = "true"
+os.environ["PANEL_PASSWORD"] = ""
+os.environ["PANEL_ADMIN_PASSWORD"] = ""
+os.environ["SESSION_SECRET"] = "e2e-test-session-secret-fixed-value"
+os.environ["BRIDGE_SECRET"] = "e2e-bridge-secret-not-for-production"
+os.environ["ALLOW_OUTBOUND_MESSAGES"] = "false"
 
 import pytest
 import uvicorn

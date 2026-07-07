@@ -440,5 +440,6 @@
   "error.webhook.notFound": "Webhook bulunamadı",
   "error.whatsapp.notConnected": "WhatsApp bağlı değil",
   "error.whatsapp.missingFields": "Alıcı ve mesaj gerekli",
-  "error.whatsapp.missingMediaFields": "Alıcı ve medya yolu gerekli"
+  "error.whatsapp.missingMediaFields": "Alıcı ve medya yolu gerekli",
+  "account.fallbackLabel": "Hesap {id}"
 }
