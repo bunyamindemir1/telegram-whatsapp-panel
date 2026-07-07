@@ -1,48 +1,49 @@
 PYTHON ?= python3.9
+export PYTHONPATH := $(CURDIR)/src
 
 .PHONY: setup quick install start stop smoke preflight dev test e2e locales screenshot publish-check docker-up docker-down docker-logs clean
 
 setup:
-	@chmod +x scripts/setup.sh scripts/install.sh scripts/start.sh scripts/stop.sh scripts/smoke_local.sh && ./scripts/setup.sh
+	@chmod +x src/scripts/setup.sh src/scripts/install.sh src/scripts/start.sh src/scripts/stop.sh src/scripts/smoke_local.sh && ./src/scripts/setup.sh
 
 quick: install start
 
 install:
-	@chmod +x scripts/install.sh && ./scripts/install.sh
+	@chmod +x src/scripts/install.sh && ./src/scripts/install.sh
 
 start:
-	@chmod +x scripts/start.sh && ./scripts/start.sh
+	@chmod +x src/scripts/start.sh && ./src/scripts/start.sh
 
 stop:
-	@chmod +x scripts/stop.sh && ./scripts/stop.sh
+	@chmod +x src/scripts/stop.sh && ./src/scripts/stop.sh
 
 smoke:
-	@chmod +x scripts/smoke_local.sh && ./scripts/smoke_local.sh
+	@chmod +x src/scripts/smoke_local.sh && ./src/scripts/smoke_local.sh
 
 dev:
 	@test -d .venv || $(PYTHON) -m venv .venv
-	@. .venv/bin/activate && pip install -q -r config/requirements.txt
-	@cd whatsapp-bridge && npm install --silent
-	@. .venv/bin/activate && $(PYTHON) scripts/run.py
+	@. .venv/bin/activate && pip install -q -r src/config/requirements.txt
+	@cd src/whatsapp-bridge && npm install --silent
+	@. .venv/bin/activate && $(PYTHON) src/scripts/run.py
 
 test:
-	@$(PYTHON) -m pytest -q -c config/pytest.ini
+	@$(PYTHON) -m pytest -q -c src/config/pytest.ini
 
 e2e:
-	@$(PYTHON) -m pytest tests/e2e -q -m e2e -c config/pytest.ini
+	@$(PYTHON) -m pytest src/tests/e2e -q -c src/config/pytest.ini -m e2e
 
 locales:
-	@$(PYTHON) scripts/validate_locales.py
+	@$(PYTHON) src/scripts/validate_locales.py
 
 screenshot:
-	@$(PYTHON) scripts/capture_screenshot.py
+	@$(PYTHON) src/scripts/capture_screenshot.py
 
 preflight:
-	@chmod +x scripts/preflight_public.sh && ./scripts/preflight_public.sh
+	@chmod +x src/scripts/preflight_public.sh && ./src/scripts/preflight_public.sh
 
 publish-check: locales test
-	@node --check whatsapp-bridge/server.js
-	@./scripts/prepare_github.sh
+	@node --check src/whatsapp-bridge/server.js
+	@./src/scripts/prepare_github.sh
 
 docker-up:
 	@docker compose up -d --build

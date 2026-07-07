@@ -4,12 +4,12 @@
 
 [![CI](https://github.com/bunyamindemir1/telegram-whatsapp-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/bunyamindemir1/telegram-whatsapp-panel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docs/QUICKSTART.md)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](config/requirements.txt)
-[![Languages](https://img.shields.io/badge/languages-15-8B5CF6)](docs/I18N.md)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](src/docs/QUICKSTART.md)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](src/config/requirements.txt)
+[![Languages](https://img.shields.io/badge/languages-15-8B5CF6)](src/docs/I18N.md)
 
 <p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" alt="Message Panel dashboard — Telegram and WhatsApp connection status, scheduler stats, sidebar navigation" width="920" />
+  <img src="src/docs/assets/screenshot-dashboard.png" alt="Message Panel dashboard — Telegram and WhatsApp connection status, scheduler stats, sidebar navigation" width="920" />
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   <a href="#quick-start">Quick Start</a> ·
   <a href="#what-you-get">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
-  <a href="docs/API.md">API</a> ·
+  <a href="src/docs/API.md">API</a> ·
   <a href="#türkçe">Türkçe</a>
 </p>
 
@@ -60,7 +60,7 @@ Each screenshot maps to a real part of the UI.
 ### 1 · Secure login
 
 <p align="center">
-  <img src="docs/assets/screenshot-login.png" alt="Login screen — bcrypt auth, test mode banner, encrypted credentials notice" width="880" />
+  <img src="src/docs/assets/screenshot-login.png" alt="Login screen — bcrypt auth, test mode banner, encrypted credentials notice" width="880" />
 </p>
 
 | # | UI element | What it means |
@@ -73,7 +73,7 @@ Each screenshot maps to a real part of the UI.
 ### 2 · First-run wizard
 
 <p align="center">
-  <img src="docs/assets/screenshot-setup.png" alt="Account setup wizard — choose Telegram API or WhatsApp QR" width="880" />
+  <img src="src/docs/assets/screenshot-setup.png" alt="Account setup wizard — choose Telegram API or WhatsApp QR" width="880" />
 </p>
 
 | # | UI element | What it means |
@@ -86,7 +86,7 @@ Each screenshot maps to a real part of the UI.
 ### 3 · Dashboard
 
 <p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" alt="Dashboard — platform status, scheduler metrics, quick actions" width="880" />
+  <img src="src/docs/assets/screenshot-dashboard.png" alt="Dashboard — platform status, scheduler metrics, quick actions" width="880" />
 </p>
 
 | # | UI element | What it means |
@@ -126,7 +126,7 @@ Open **http://localhost:8000** — the admin password is printed once (also save
 
 ```bash
 make quick                    # install + start
-./scripts/smoke_local.sh      # health check
+make smoke                    # health check
 make stop
 ```
 
@@ -152,7 +152,7 @@ flowchart LR
 | **WhatsApp bridge** (Node/Baileys) | QR login, message sync, media |
 | **Your server** | Sessions, DB, credentials — all local |
 
-Full API reference: [docs/API.md](docs/API.md)
+Full API reference: [src/docs/API.md](src/docs/API.md)
 
 ---
 
@@ -172,18 +172,22 @@ Full API reference: [docs/API.md](docs/API.md)
 
 ```
 telegram-whatsapp-panel/
-├── README.md · LICENSE · Makefile · docker-compose.yml   ← root (4 files)
-├── app/              FastAPI backend
-├── config/           requirements, pytest config
-├── docker/           Dockerfile + entrypoint
-├── docs/             guides, CONTRIBUTING, SECURITY
-├── locales/          15-language UI strings
-├── scripts/          setup, install, run.py
-├── tests/            pytest + Playwright E2E
-└── whatsapp-bridge/  Baileys service
+├── README.md
+├── LICENSE
+├── Makefile
+├── docker-compose.yml
+└── src/                  ← all source code lives here
+    ├── app/              FastAPI backend
+    ├── config/           requirements, pytest
+    ├── docker/           Dockerfile
+    ├── docs/             guides & screenshots
+    ├── locales/          15 languages
+    ├── scripts/          setup, install, tools
+    ├── tests/            pytest + E2E
+    └── whatsapp-bridge/  Baileys service
 ```
 
-Details: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
+Details: [src/docs/PROJECT_STRUCTURE.md](src/docs/PROJECT_STRUCTURE.md)
 
 ---
 
@@ -195,7 +199,7 @@ make e2e        # browser tests
 make preflight  # pre-publish checks
 ```
 
-[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) · [docs/SUPPORT.md](docs/SUPPORT.md) · [docs/FAQ.md](docs/FAQ.md) · [docs/SECURITY.md](docs/SECURITY.md)
+[src/docs/CONTRIBUTING.md](src/docs/CONTRIBUTING.md) · [src/docs/SUPPORT.md](src/docs/SUPPORT.md) · [src/docs/FAQ.md](src/docs/FAQ.md) · [src/docs/SECURITY.md](src/docs/SECURITY.md)
 
 ---
 
@@ -234,10 +238,10 @@ Tarayıcı: **http://127.0.0.1:8000** → giriş → hesap sihirbazı
 
 | Rehber | Link |
 |--------|------|
-| Hızlı başlangıç | [docs/QUICKSTART.md](docs/QUICKSTART.md) |
-| API | [docs/API.md](docs/API.md) |
-| Sunucu / HTTPS | [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) |
-| SSS | [docs/FAQ.md](docs/FAQ.md) |
+| Hızlı başlangıç | [src/docs/QUICKSTART.md](src/docs/QUICKSTART.md) |
+| API | [src/docs/API.md](src/docs/API.md) |
+| Sunucu / HTTPS | [src/docs/SELF_HOSTING.md](src/docs/SELF_HOSTING.md) |
+| SSS | [src/docs/FAQ.md](src/docs/FAQ.md) |
 
 ---
 
