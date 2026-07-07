@@ -1,0 +1,65 @@
+name: telegram-whatsapp-panel
+
+services:
+  panel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-whatsapp-panel
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      HOST: 0.0.0.0
+      ENV: production
+      MANAGE_WHATSAPP_BRIDGE: "false"
+      WHATSAPP_BRIDGE_URL: http://whatsapp-bridge:3001
+      PANEL_URL: http://panel:8000
+      ALLOW_OUTBOUND_MESSAGES: ${ALLOW_OUTBOUND_MESSAGES:-false}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env — run ./setup.sh}
+      BRIDGE_SECRET: ${BRIDGE_SECRET:?Set BRIDGE_SECRET in .env — run ./setup.sh}
+      PANEL_ADMIN_USER: ${PANEL_ADMIN_USER:-admin}
+      PANEL_ADMIN_PASSWORD: ${PANEL_ADMIN_PASSWORD:?Set PANEL_ADMIN_PASSWORD in .env — run ./setup.sh}
+      REQUIRE_PANEL_AUTH: "true"
+      TELEGRAM_PHONE: ${TELEGRAM_PHONE:-}
+      TIMEZONE: ${TIMEZONE:-Europe/Istanbul}
+    volumes:
+      - panel_data:/app/data
+      - panel_sessions:/app/sessions
+    depends_on:
+      whatsapp-bridge:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  whatsapp-bridge:
+    build:
+      context: ./whatsapp-bridge
+      dockerfile: Dockerfile
+    container_name: telegram-whatsapp-bridge
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      WHATSAPP_BRIDGE_PORT: 3001
+      PANEL_URL: http://panel:8000
+      DATA_DIR: /app/data
+      BRIDGE_SECRET: ${BRIDGE_SECRET:?Set BRIDGE_SECRET in .env — run ./setup.sh}
+      ALLOW_OUTBOUND_MESSAGES: ${ALLOW_OUTBOUND_MESSAGES:-false}
+    volumes:
+      - wa_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  panel_data:
+  panel_sessions:
+  wa_data:

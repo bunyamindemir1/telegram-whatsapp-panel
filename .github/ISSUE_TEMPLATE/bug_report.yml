@@ -1,0 +1,73 @@
+name: Bug Report
+description: Bir şey çalışmıyor mu?
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sorunu anlamamıza yardımcı olun. Güvenlik açıkları için lütfen [SECURITY.md](../SECURITY.md) dosyasındaki süreci izleyin.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Bileşen
+      options:
+        - Panel (web arayüzü)
+        - Telegram bağlantısı
+        - WhatsApp / köprü
+        - API v1
+        - Docker kurulumu
+        - Diğer
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Tekrar adımları
+      description: Hatayı nasıl tekrarlayabiliriz?
+      placeholder: |
+        1. ./setup.sh çalıştırdım
+        2. WhatsApp QR taradım
+        3. Mesaj gönder dedim
+        4. Hata aldım
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Beklenen davranış
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Gerçekleşen davranış
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Sürüm / commit
+      placeholder: main @ abc1234 veya v1.0.0
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: Kurulum yöntemi
+      options:
+        - Docker (setup.sh)
+        - Docker (manuel)
+        - Yerel (python run.py)
+        - Diğer
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Loglar
+      description: `docker compose logs panel` veya tarayıcı konsolu
+      render: shell

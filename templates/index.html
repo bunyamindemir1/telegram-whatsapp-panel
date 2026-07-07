@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}" dir="{% if locale_rtl %}rtl{% else %}ltr{% endif %}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+  <meta name="description" content="Self-hosted unified inbox for Telegram and WhatsApp." />
+  <meta name="application-name" content="Message Panel" />
+  <meta property="og:title" content="Message Panel — Telegram & WhatsApp" />
+  <meta property="og:description" content="Self-hosted unified inbox. Schedule messages, manage conversations, automate via REST API." />
+  <meta property="og:type" content="website" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Message Panel</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/css/style.css?v={{ css_v }}" />
+  <script>
+    window.__LOCALE__ = {{ locale | tojson }};
+    window.__I18N__ = {{ i18n_json | tojson }};
+    window.__I18N_FALLBACK__ = {{ i18n_fallback_json | tojson }};
+    window.__LOCALES__ = {{ locales_json | tojson }};
+  </script>
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Medya lightbox -->
+  <div id="media-lightbox" class="media-lightbox hidden" onclick="closeMediaLightbox()">
+    <img id="media-lightbox-img" alt="" />
+  </div>
+
+  <!-- Onboarding -->
+  <div id="onboarding-overlay" class="onboarding-overlay hidden">
+    <div class="card onboarding-card" onclick="event.stopPropagation()">
+      <div class="onboarding-step active">
+        <span class="premium-badge">Premium</span>
+        <h2 data-i18n="onboarding.welcome">Welcome</h2>
+        <p class="muted" data-i18n="onboarding.welcomeDesc">Manage Telegram and WhatsApp from one panel.</p>
+      </div>
+      <div class="onboarding-step">
+        <h2 data-i18n="onboarding.connect">Connect accounts</h2>
+        <p class="muted" data-i18n="onboarding.connectDesc">Link Telegram API or scan WhatsApp QR.</p>
+      </div>
+      <div class="onboarding-step">
+        <h2 data-i18n="onboarding.api">API & automation</h2>
+        <p class="muted" data-i18n="onboarding.apiDesc">Create API keys and webhooks. Docs at /docs</p>
+      </div>
+      <div class="onboarding-actions">
+        <button class="btn ghost" onclick="finishOnboarding('skip')" data-i18n="common.skip">Skip</button>
+        <button class="btn primary" onclick="finishOnboarding('next')" data-i18n="common.continue">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- İlk hesap bağlama sihirbazı -->
+  <div id="account-setup-overlay" class="onboarding-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="account-setup-title">
+    <div class="card onboarding-card account-setup-card" onclick="event.stopPropagation()">
+      <div id="account-setup-step-pick" class="onboarding-step active">
+        <span class="premium-badge">1/2</span>
+        <h2 id="account-setup-title" data-i18n="setup.firstAccountTitle">Connect your first account</h2>
+        <p class="muted" data-i18n="setup.firstAccountDesc">Link Telegram or WhatsApp to start using the panel.</p>
+        <p class="setup-section-label" data-i18n="setup.pickPlatform">Choose a platform</p>
+        <div class="setup-platform-grid">
+          <button type="button" class="setup-platform-card" data-platform="telegram" onclick="accountSetupPickPlatform('telegram')">
+            <span class="setup-platform-icon" data-icon="brand-telegram" data-icon-size="28"></span>
+            <strong>Telegram</strong>
+            <span class="muted small" data-i18n="setup.telegramDesc">API credentials and phone verification</span>
+          </button>
+          <button type="button" class="setup-platform-card" data-platform="whatsapp" onclick="accountSetupPickPlatform('whatsapp')">
+            <span class="setup-platform-icon" data-icon="brand-whatsapp" data-icon-size="28"></span>
+            <strong>WhatsApp</strong>
+            <span class="muted small" data-i18n="setup.whatsappDesc">Scan QR code with your phone</span>
+          </button>
+        </div>
+        <div class="onboarding-actions">
+          <button type="button" class="btn ghost" onclick="dismissAccountSetup()" data-i18n="setup.later">I'll do this later</button>
+        </div>
+      </div>
+      <div id="account-setup-step-name" class="onboarding-step">
+        <span class="premium-badge">2/2</span>
+        <h2 data-i18n="setup.accountNameTitle">Name this account</h2>
+        <p class="muted small" id="account-setup-platform-hint"></p>
+        <div class="field">
+          <label data-i18n="account.name">Account name</label>
+          <input type="text" id="setup-account-label" maxlength="64" data-i18n-placeholder="account.namePlaceholder" placeholder="e.g. Work WhatsApp" />
+        </div>
+        <div class="onboarding-actions">
+          <button type="button" class="btn ghost" onclick="accountSetupBack()" data-i18n="common.back">Back</button>
+          <button type="button" class="btn primary" id="btn-account-setup-continue" onclick="accountSetupContinue()" data-i18n="setup.continueConnect">Continue to connection</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WhatsApp QR Modal -->
+  <div id="qr-overlay" class="overlay hidden">
+    <div class="card qr-card wa-qr-card">
+      <div class="wa-qr-header">
+        <span class="wa-logo"><span data-icon="brand-whatsapp" data-icon-size="20"></span> WhatsApp</span>
+        <button class="icon-btn" onclick="closeQrModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+      </div>
+      <div class="qr-frame wa-qr-frame" id="qr-frame">
+        <div class="qr-placeholder"><span class="loading"></span><p data-i18n="qr.preparing">Preparing QR…</p></div>
+      </div>
+      <h2 data-i18n="qr.title">Link Your Phone</h2>
+      <ol class="wa-qr-steps">
+        <li data-i18n="qr.step1">Open WhatsApp on your phone</li>
+        <li data-i18n="qr.step2">Settings → Linked Devices → Link a Device</li>
+        <li data-i18n="qr.step3">Scan the QR code below</li>
+      </ol>
+      <p class="muted small" id="qr-status" data-i18n="qr.waiting">Waiting…</p>
+      <div class="wa-qr-actions">
+        <button class="btn ghost" onclick="closeQrModal()" data-i18n="qr.cancel">Cancel</button>
+        <button class="btn wa-btn" onclick="openQrModal()" data-i18n="qr.refresh"><span data-icon="refresh-cw" data-icon-size="16"></span> Yenile</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="safe-mode-banner" class="safe-mode-banner hidden">
+    <span data-icon="shield" data-icon-size="18"></span>
+    <span><strong data-i18n="safeMode.banner">Test mode: outbound messages are disabled.</strong></span>
+  </div>
+
+  <!-- Zamanlama modalı (Teams tarzı) -->
+  <div id="schedule-modal" class="overlay hidden">
+    <div class="card schedule-modal-card">
+      <div class="schedule-modal-header">
+        <div>
+          <h2><span data-icon="clock" data-icon-size="20"></span> <span data-i18n="schedule.title">Schedule</span></h2>
+          <p class="muted small" id="schedule-modal-recipient">—</p>
+        </div>
+        <button class="icon-btn" onclick="closeScheduleModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+      </div>
+
+      <div class="schedule-message-preview" id="schedule-modal-message">—</div>
+
+      <div class="schedule-section">
+        <label class="schedule-section-label" data-i18n="schedule.quickSelect">Quick pick</label>
+        <div class="schedule-presets">
+          <button type="button" class="schedule-preset" data-preset="15m" onclick="applySchedulePreset('15m')" data-i18n="schedule.preset15m">15 min</button>
+          <button type="button" class="schedule-preset" data-preset="30m" onclick="applySchedulePreset('30m')" data-i18n="schedule.preset30m">30 min</button>
+          <button type="button" class="schedule-preset" data-preset="1h" onclick="applySchedulePreset('1h')" data-i18n="schedule.preset1h">1 hour</button>
+          <button type="button" class="schedule-preset" data-preset="this_evening" onclick="applySchedulePreset('this_evening')" data-i18n="schedule.presetEvening">This evening</button>
+          <button type="button" class="schedule-preset" data-preset="tomorrow_morning" onclick="applySchedulePreset('tomorrow_morning')" data-i18n="schedule.presetTomorrow">Tomorrow 09:00</button>
+          <button type="button" class="schedule-preset" data-preset="next_monday" onclick="applySchedulePreset('next_monday')" data-i18n="schedule.presetMonday">Mon 09:00</button>
+        </div>
+      </div>
+
+      <div class="schedule-datetime-row" id="schedule-fixed-datetime">
+        <div class="field">
+          <label data-i18n="schedule.date">Date</label>
+          <input type="date" id="modal-schedule-date" onchange="syncModalDateTime()" />
+        </div>
+        <div class="field">
+          <label><span data-i18n="schedule.time">Time</span> <span class="muted">(<span data-i18n="schedule.timezone">local</span>)</span></label>
+          <input type="time" id="modal-schedule-time" onchange="syncModalDateTime()" />
+        </div>
+      </div>
+
+      <div class="schedule-section">
+        <label class="schedule-section-label" data-i18n="schedule.repeat">Repeat</label>
+        <div class="repeat-pills" id="repeat-pills">
+          <button type="button" class="repeat-pill active" data-repeat="none" onclick="setRepeatPill('none')" data-i18n="schedule.repeatOnce">Once</button>
+          <button type="button" class="repeat-pill" data-repeat="hourly" onclick="setRepeatPill('hourly')" data-i18n="schedule.repeatHourly">Hourly</button>
+          <button type="button" class="repeat-pill" data-repeat="daily" onclick="setRepeatPill('daily')" data-i18n="schedule.repeatDaily">Daily</button>
+          <button type="button" class="repeat-pill" data-repeat="weekly" onclick="setRepeatPill('weekly')" data-i18n="schedule.repeatWeekly">Weekly</button>
+          <button type="button" class="repeat-pill" data-repeat="custom" onclick="setRepeatPill('custom')" data-i18n="schedule.repeatCustom">Custom</button>
+          <button type="button" class="repeat-pill" data-repeat="random_daily" onclick="setRepeatPill('random_daily')"><span data-icon="dices" data-icon-size="14"></span> <span data-i18n="schedule.repeatRandom">Random daily</span></button>
+        </div>
+        <div class="field hidden" id="modal-custom-interval-field">
+          <label data-i18n="schedule.interval">Interval (minutes)</label>
+          <input type="number" id="modal-repeat-interval" min="1" value="60" />
+        </div>
+      </div>
+
+      <details class="schedule-advanced hidden" id="random-window-panel">
+        <summary class="schedule-advanced-summary"><span data-icon="dices" data-icon-size="14"></span> Rastgele zaman penceresi</summary>
+        <p class="muted small schedule-advanced-hint" data-i18n="schedule.randomHint">Random time each day.</p>
+        <div class="schedule-datetime-row">
+          <div class="field">
+            <label><span data-i18n="schedule.windowStart">Start</span> <span class="muted">(<span data-i18n="schedule.timezone">local</span>)</span></label>
+            <input type="time" id="modal-window-start" value="07:00" step="60" onchange="updateSchedulePreview()" />
+          </div>
+          <div class="field">
+            <label><span data-i18n="schedule.windowEnd">End</span> <span class="muted">(<span data-i18n="schedule.timezone">local</span>)</span></label>
+            <input type="time" id="modal-window-end" value="07:30" step="60" onchange="updateSchedulePreview()" />
+          </div>
+        </div>
+        <div class="schedule-window-presets">
+          <button type="button" class="schedule-preset small" onclick="applyWindowPreset('07:00','07:30')" data-i18n="schedule.windowMorning">Morning</button>
+          <button type="button" class="schedule-preset small" onclick="applyWindowPreset('06:30','07:30')" data-i18n="schedule.windowEarly">06:30–07:30</button>
+          <button type="button" class="schedule-preset small" onclick="applyWindowPreset('08:00','09:00')" data-i18n="schedule.windowLate">08:00–09:00</button>
+        </div>
+      </details>
+
+      <div class="schedule-summary" id="schedule-summary">
+        <span class="schedule-summary-icon" data-icon="calendar" data-icon-size="20"></span>
+        <div>
+          <strong id="schedule-summary-text">—</strong>
+          <p class="muted small" id="schedule-summary-relative">—</p>
+        </div>
+      </div>
+
+      <div class="schedule-modal-actions">
+        <button class="btn ghost" onclick="closeScheduleModal()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn primary" id="btn-confirm-schedule" onclick="confirmSchedule()" data-i18n="schedule.confirm">Schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Yeni hesap modalı -->
+  <div id="add-account-overlay" class="overlay hidden">
+    <div class="card add-account-card">
+      <div class="schedule-modal-header">
+        <div>
+          <h2 id="add-account-title" data-i18n="account.add">Add Account</h2>
+          <p class="muted small" id="add-account-subtitle" data-i18n="account.addSubtitle">Create a new account</p>
+        </div>
+        <button class="icon-btn" onclick="closeAddAccountModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+      </div>
+      <div class="field" style="padding: 0 20px 16px;">
+        <label data-i18n="account.name">Account name</label>
+        <input type="text" id="add-account-label" placeholder="e.g. Work WhatsApp" data-i18n-placeholder="account.namePlaceholder" maxlength="64" />
+      </div>
+      <div class="schedule-modal-actions">
+        <button class="btn ghost" onclick="closeAddAccountModal()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn primary" id="btn-confirm-add-account" onclick="confirmAddAccount()" data-i18n="common.add">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sohbet ismi düzenle -->
+  <div id="rename-chat-overlay" class="overlay hidden">
+    <div class="card add-account-card">
+      <div class="schedule-modal-header">
+        <div>
+          <h2 data-i18n="rename.title">Rename Chat</h2>
+          <p class="muted small" id="rename-chat-hint" data-i18n="rename.hint">Display name in list</p>
+        </div>
+        <button class="icon-btn" onclick="closeRenameChatModal()" aria-label="Kapat"><span data-icon="x"></span></button>
+      </div>
+      <div class="field" style="padding: 0 20px 16px;">
+        <label data-i18n="rename.label">Display name</label>
+        <input type="text" id="rename-chat-input" placeholder="e.g. Mom" data-i18n-placeholder="rename.placeholder" maxlength="64" />
+      </div>
+      <div class="schedule-modal-actions">
+        <button class="btn ghost" onclick="closeRenameChatModal()" data-i18n="common.cancel">Cancel</button>
+        <button class="btn primary" onclick="confirmRenameChat()" data-i18n="common.save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="login-overlay" class="overlay hidden">
+    <div class="card login-card">
+      <div class="login-brand">
+        <span class="login-brand-icon" data-icon="messages-square" data-icon-size="28"></span>
+        <div>
+          <h1 class="login-brand-title"><span data-i18n="brand.name">Message Panel</span> <span class="premium-badge small" data-i18n="brand.pro">Pro</span></h1>
+          <p class="login-brand-tagline" data-i18n="brand.tagline">Telegram & WhatsApp · one panel</p>
+        </div>
+      </div>
+      <div class="login-icon" data-icon="lock" data-icon-size="28"></div>
+      <h2 id="login-title" data-i18n="login.title">Panel Login</h2>
+      <p id="login-subtitle" data-i18n="login.subtitle">Sign in to continue.</p>
+      <div id="setup-fields" class="hidden">
+        <div class="field">
+          <label data-i18n="login.username">Username</label>
+          <input type="text" id="panel-username" placeholder="admin" autocomplete="username" spellcheck="false" />
+        </div>
+      </div>
+      <div id="login-fields">
+        <div class="field" id="username-field">
+          <label data-i18n="login.username">Username</label>
+          <input type="text" id="panel-username-login" placeholder="admin" autocomplete="username" spellcheck="false" />
+        </div>
+        <div class="field password-field">
+          <label id="password-label" data-i18n="login.password">Password</label>
+          <div class="password-input-wrap">
+            <input type="password" id="panel-password" data-i18n-placeholder="login.passwordPlaceholder" placeholder="Password" autocomplete="current-password" />
+            <button type="button" class="password-toggle" id="panel-password-toggle" data-i18n-aria="login.passwordShow" aria-label="Show password" onclick="togglePasswordVisibility()"><span data-icon="eye" data-icon-size="18"></span></button>
+          </div>
+        </div>
+        <div id="setup-password-extra" class="hidden">
+          <div class="field password-field">
+            <label data-i18n="login.passwordConfirm">Confirm password</label>
+            <div class="password-input-wrap">
+              <input type="password" id="panel-password-confirm" data-i18n-placeholder="login.passwordConfirmPlaceholder" placeholder="Confirm password" autocomplete="new-password" />
+            </div>
+          </div>
+          <div class="password-strength" id="password-strength">
+            <div class="password-strength-bar"><span id="password-strength-fill"></span></div>
+            <p id="password-strength-text" class="muted small" data-i18n="login.passwordHint">At least 8 characters</p>
+          </div>
+        </div>
+      </div>
+      <button class="btn primary full" id="panel-login-btn" onclick="panelLogin()" data-i18n="login.submit">Sign In</button>
+      <p id="login-error" class="error hidden"></p>
+      <div class="login-privacy">
+        <p class="muted small"><strong><span data-icon="lock" data-icon-size="14"></span> <span data-i18n="login.privacyTitle">Data security</span></strong></p>
+        <ul class="privacy-list">
+          <li data-i18n="login.privacy1">API keys encrypted</li>
+          <li data-i18n="login.privacy2">Phones masked</li>
+          <li data-i18n="login.privacy3">Test mode blocks outbound</li>
+          <li data-i18n="login.privacy4">Data on your server only</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="app">
+    <header class="mobile-topbar" id="mobile-topbar">
+      <button class="icon-btn" id="sidebar-toggle" data-i18n-aria="nav.menu" aria-label="Menu" onclick="toggleMobileSidebar()"><span data-icon="menu"></span></button>
+      <div class="mobile-topbar-title">
+        <span id="mobile-page-title" data-i18n="nav.dashboardShort">Home</span>
+      </div>
+      <div class="mobile-platform-switch" id="mobile-platform-switch">
+        <button type="button" class="mob-plat-btn active" data-platform="telegram" onclick="setPlatform('telegram')" aria-label="Telegram"><span data-icon="brand-telegram"></span></button>
+        <button type="button" class="mob-plat-btn" data-platform="whatsapp" onclick="setPlatform('whatsapp')" aria-label="WhatsApp"><span data-icon="brand-whatsapp"></span></button>
+      </div>
+      <button class="icon-btn" id="mobile-refresh" aria-label="Yenile" onclick="refreshCurrentTab()"><span data-icon="refresh-cw"></span></button>
+    </header>
+
+    <div class="sidebar-backdrop hidden" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-icon" data-icon="messages-square" data-icon-size="24"></div>
+        <div>
+          <h1><span data-i18n="brand.name">Message Panel</span> <span class="premium-badge small" data-i18n="brand.pro">Pro</span></h1>
+          <p data-i18n="brand.tagline">Telegram & WhatsApp · one panel</p>
+        </div>
+      </div>
+
+      <div class="platform-switch" id="platform-switch">
+        <div class="platform-switch-track" id="platform-switch-track">
+          <button type="button" class="platform-btn active" data-platform="telegram" onclick="setPlatform('telegram')" aria-pressed="true">
+            <span class="platform-dot" id="dot-telegram"></span>
+            <span class="platform-icon" data-icon="brand-telegram"></span>
+            <span class="platform-label" data-i18n="platform.telegram">Telegram</span>
+          </button>
+          <button type="button" class="platform-btn" data-platform="whatsapp" onclick="setPlatform('whatsapp')" aria-pressed="false">
+            <span class="platform-dot" id="dot-whatsapp"></span>
+            <span class="platform-icon" data-icon="brand-whatsapp"></span>
+            <span class="platform-label" data-i18n="platform.whatsapp">WhatsApp</span>
+          </button>
+        </div>
+      </div>
+
+      <nav>
+        <button class="nav-btn active" data-tab="dashboard">
+          <span class="nav-icon" data-icon="layout-dashboard"></span> <span data-i18n="nav.dashboard">Dashboard</span>
+        </button>
+        <button class="nav-btn" data-tab="chats" id="nav-chats">
+          <span class="nav-icon" data-icon="messages-square"></span> <span data-i18n="nav.chats">Chats</span>
+        </button>
+        <button class="nav-btn" data-tab="compose">
+          <span class="nav-icon" data-icon="mail"></span> <span data-i18n="nav.compose">New Message</span>
+        </button>
+        <button class="nav-btn" data-tab="scheduled">
+          <span class="nav-icon" data-icon="clock"></span> <span data-i18n="nav.scheduled">Scheduled</span>
+          <span class="nav-badge hidden" id="pending-badge">0</span>
+        </button>
+        <button class="nav-btn" data-tab="templates">
+          <span class="nav-icon" data-icon="file-text"></span> <span data-i18n="nav.templates">Templates</span>
+        </button>
+        <button class="nav-btn" data-tab="account">
+          <span class="nav-icon" data-icon="user"></span> <span data-i18n="nav.account">Account</span>
+        </button>
+      </nav>
+
+      <div class="account-mini" id="account-mini">
+        <span class="platform-status-ring" id="platform-status-ring">
+          <span class="dot offline" id="status-dot"></span>
+        </span>
+        <div>
+          <div class="mini-label" id="mini-platform">Telegram</div>
+          <div class="mini-value" id="mini-status" data-i18n="status.disconnected">Disconnected</div>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <label class="lang-select-wrap">
+          <span class="muted small" data-i18n="lang.label">Language</span>
+          <select id="lang-select" class="lang-select" aria-label="Language"></select>
+        </label>
+        <button type="button" class="btn ghost full small theme-toggle-btn" onclick="toggleTheme()" data-i18n-title="theme.dark">
+          <span data-icon="moon" data-icon-size="14" id="theme-icon"></span> <span data-i18n="theme.dark">Theme</span>
+        </button>
+        <div class="panel-user-line hidden" id="panel-user-line">
+          <span class="muted small"><span class="icon-inline" data-icon="user" data-icon-size="14"></span> <span id="panel-user-label">—</span></span>
+        </div>
+        <button class="btn ghost full small" id="panel-logout-btn" onclick="panelLogout()" data-i18n="account.logout">Sign Out</button>
+      </div>
+    </aside>
+
+    <main class="content" id="main-content">
+      <div class="platform-context-bar" id="platform-context-bar">
+        <div class="platform-context-left">
+          <span class="platform-context-icon" id="platform-context-icon" data-icon="brand-telegram"></span>
+          <div>
+            <strong id="platform-context-name">Telegram</strong>
+            <span class="platform-context-status" id="platform-context-status" data-i18n="status.checking">Checking…</span>
+          </div>
+        </div>
+        <div class="platform-context-actions">
+          <button type="button" class="btn ghost small" onclick="switchTab('account')"><span data-icon="settings" data-icon-size="14"></span> <span data-i18n="context.account">Account</span></button>
+          <button type="button" class="btn ghost small hidden" id="ctx-sync-wa" onclick="syncAllMessages()"><span data-icon="download" data-icon-size="14"></span> <span data-i18n="context.syncMessages">Import</span></button>
+        </div>
+      </div>
+      <div class="account-switcher" id="account-switcher">
+        <div class="account-switcher-track" id="account-switcher-track"></div>
+        <button type="button" class="account-add-btn" id="account-add-btn" onclick="promptAddAccount()" data-i18n-title="common.addAccount" title="Add account">+</button>
+      </div>
+      <div class="content-panels" id="content-panels">
+      <!-- Dashboard -->
+      <section id="tab-dashboard" class="tab active">
+        <header class="page-header">
+          <h2 data-i18n="dashboard.title">Dashboard</h2>
+          <p><span data-i18n="dashboard.subtitle">Track activity</span> <span class="tz-badge" data-i18n="dashboard.timezone">Local TZ</span></p>
+        </header>
+
+        <div id="dashboard-setup-banner" class="setup-banner hidden" role="status">
+          <div class="setup-banner-body">
+            <span data-icon="smartphone" data-icon-size="22"></span>
+            <div>
+              <strong data-i18n="setup.bannerTitle">Connect an account to get started</strong>
+              <p class="muted small" data-i18n="setup.bannerDesc">Link Telegram or WhatsApp — then you can send messages, schedule, and sync chats.</p>
+            </div>
+          </div>
+          <button type="button" class="btn primary small" onclick="reopenAccountSetup()" data-i18n="setup.bannerBtn">Connect now</button>
+        </div>
+
+        <div class="connection-cards">
+          <div class="conn-card clickable" id="dash-tg" onclick="setPlatform('telegram'); switchTab('account')" role="button" tabindex="0">
+            <span class="conn-icon" id="dash-tg-icon" data-icon="brand-telegram" data-icon-size="22"></span>
+            <div><strong>Telegram</strong><br><span class="muted" id="dash-tg-status" data-i18n="status.checking">Checking…</span></div>
+            <span class="conn-go" data-icon="chevron-right"></span>
+          </div>
+          <div class="conn-card clickable" id="dash-wa" onclick="setPlatform('whatsapp'); switchTab('account')" role="button" tabindex="0">
+            <span class="conn-icon" id="dash-wa-icon" data-icon="brand-whatsapp" data-icon-size="22"></span>
+            <div><strong>WhatsApp</strong><br><span class="muted" id="dash-wa-status" data-i18n="status.checking">Checking…</span></div>
+            <span class="conn-go" data-icon="chevron-right"></span>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label" data-i18n="dashboard.pending">Pending</div>
+            <div class="stat-value" id="stat-pending">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label" data-i18n="dashboard.sent">Sent</div>
+            <div class="stat-value success" id="stat-sent">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label" data-i18n="dashboard.failed">Failed</div>
+            <div class="stat-value danger" id="stat-failed">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label" data-i18n="dashboard.scheduler">Scheduler</div>
+            <div class="stat-value" id="stat-scheduler">-</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 data-i18n="dashboard.nextSendTitle">Next send</h3>
+            <div id="next-run-info" class="next-run-box">
+              <p class="muted" data-i18n="dashboard.noScheduled">No scheduled messages.</p>
+            </div>
+          </div>
+          <div class="card">
+            <h3 data-i18n="dashboard.quickActions">Quick actions</h3>
+            <div class="quick-actions">
+              <button class="btn primary" onclick="switchTab('compose')"><span data-icon="mail" data-icon-size="16"></span> <span data-i18n="dashboard.newMessage">New Message</span></button>
+              <button class="btn secondary tg-theme" onclick="setPlatform('telegram'); switchTab('chats')"><span data-icon="brand-telegram" data-icon-size="16"></span> Telegram</button>
+              <button class="btn secondary wa-theme" onclick="setPlatform('whatsapp'); switchTab('chats')"><span data-icon="brand-whatsapp" data-icon-size="16"></span> WhatsApp</button>
+              <button class="btn secondary" onclick="switchTab('scheduled')"><span data-icon="clock" data-icon-size="16"></span> <span data-i18n="nav.scheduled">Scheduled</span></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Chats (WhatsApp style) -->
+      <section id="tab-chats" class="tab">
+        <header class="page-header row-header">
+          <div>
+            <h2 id="chats-title" data-i18n="chats.title">Chats</h2>
+            <p id="chats-subtitle" data-i18n="chats.subtitle">View history</p>
+          </div>
+          <div class="header-actions platform-aware-actions">
+            <button class="btn secondary small wa-only hidden" id="btn-sync-all" onclick="syncAllMessages()" title="Import"><span data-icon="download" data-icon-size="14"></span> <span data-i18n="chats.importBtn">Import</span></button>
+            <button class="btn secondary small" onclick="loadChatThread(true)"><span data-icon="refresh-cw" data-icon-size="14"></span></button>
+          </div>
+        </header>
+        <div id="wa-connect-banner" class="wa-connect-banner hidden">
+          <div>
+            <strong data-i18n="chats.waBannerTitle">WhatsApp not connected</strong>
+            <p class="muted small" data-i18n="chats.waBannerDesc">Scan QR</p>
+          </div>
+          <button class="btn wa-btn small" onclick="openQrModal()" data-i18n="chats.connectBtn">Connect</button>
+        </div>
+        <div class="chat-search-bar">
+          <input type="text" id="wa-chat-search" data-i18n-placeholder="chats.searchPlaceholder" placeholder="Search…" autocomplete="off" />
+          <div id="message-search-results" class="message-search-results hidden"></div>
+        </div>
+        <div class="chat-filter-bar" id="chat-filter-bar">
+          <button type="button" class="chat-filter active" data-filter="all" onclick="setChatListFilter('all')" data-i18n="chats.filterAll">All</button>
+          <button type="button" class="chat-filter" data-filter="unread" onclick="setChatListFilter('unread')" data-i18n="chats.filterUnread">Unread</button>
+          <button type="button" class="chat-filter" data-filter="group" onclick="setChatListFilter('group')" data-i18n="chats.filterGroups">Groups</button>
+          <button type="button" class="chat-filter" data-filter="private" onclick="setChatListFilter('private')" data-i18n="chats.filterPrivate">Private</button>
+        </div>
+        <div id="wa-sync-status" class="wa-sync-status hidden"></div>
+        <div id="import-progress" class="import-progress hidden" role="status" aria-live="polite">
+          <div class="import-progress-inner">
+            <div class="import-progress-header">
+              <span class="import-progress-title" data-i18n="chats.importingTitle">Importing</span>
+              <span class="import-progress-count" id="import-progress-count">0 / 0</span>
+            </div>
+            <div class="import-progress-track">
+              <div class="import-progress-bar" id="import-progress-bar"></div>
+            </div>
+            <p class="import-progress-hint muted small" id="import-progress-hint" data-i18n="chats.importHint">Background import</p>
+          </div>
+        </div>
+        <div class="chat-layout" id="chat-layout">
+          <div class="card chat-sidebar-panel" id="chat-sidebar-panel">
+            <div class="chat-list tall" id="wa-chat-list">
+              <div class="empty-state"><span class="empty-icon" data-icon="messages-square" data-icon-size="36"></span><p data-i18n="chats.loading">Loading…</p></div>
+            </div>
+          </div>
+          <div class="card chat-main-panel" id="chat-main-panel">
+            <div id="chat-header" class="chat-header hidden">
+              <div class="chat-header-left">
+                <button class="icon-btn chat-back-btn hidden" id="chat-back-btn" onclick="closeThreadMobile()" data-i18n-aria="common.back" aria-label="Back"><span data-icon="arrow-left"></span></button>
+                <div class="chat-header-avatar" id="chat-header-avatar">?</div>
+                <div>
+                  <strong id="chat-header-name"></strong>
+                  <span class="chat-type" id="chat-header-type"></span>
+                </div>
+              </div>
+              <div class="chat-header-actions">
+                <button type="button" class="icon-btn" id="btn-rename-chat" onclick="openRenameChatModal()" data-i18n-title="chats.rename" data-i18n-aria="chats.rename" title="Rename"><span data-icon="pencil"></span></button>
+                <span id="conn-badge" class="conn-badge disconnected"></span>
+              </div>
+            </div>
+            <div id="message-thread" class="message-thread">
+              <div class="empty-state"><span class="empty-icon" data-icon="message-square-text" data-icon-size="36"></span><p data-i18n="empty.selectChat">Select a chat</p></div>
+            </div>
+            <button type="button" id="load-more-msgs" class="load-more-msgs hidden" onclick="loadMoreThreadMessages()" data-i18n="chats.loadOlder">Older messages</button>
+            <div id="chat-compose" class="chat-compose hidden">
+              <input type="file" id="chat-file-input" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" onchange="onChatFileSelected(event)" />
+              <div class="chat-compose-bar">
+                <button type="button" class="compose-icon-btn" onclick="document.getElementById('chat-file-input').click()" data-i18n-title="chats.attach" data-i18n-aria="chats.attach"><span data-icon="paperclip"></span></button>
+                <button type="button" class="compose-icon-btn" onclick="openScheduleFromChat()" data-i18n-title="chats.schedule" data-i18n-aria="chats.schedule"><span data-icon="clock"></span></button>
+                <textarea id="chat-reply" rows="1" data-i18n-placeholder="chats.replyPlaceholder" placeholder="Message…"></textarea>
+                <button type="button" class="compose-icon-btn send-btn" onclick="sendChatReply()" data-i18n-title="common.send" data-i18n-aria="common.send"><span data-icon="send"></span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Compose -->
+      <section id="tab-compose" class="tab">
+        <header class="page-header">
+          <div class="page-header-with-badge">
+            <h2 data-i18n="compose.title">New Message</h2>
+            <span class="platform-pill" id="compose-platform-pill"><span data-icon="brand-telegram" data-icon-size="16"></span> <span>Telegram</span></span>
+          </div>
+          <p id="compose-subtitle" data-i18n="platform.telegram.composeSubtitle">Compose</p>
+        </header>
+
+        <div class="compose-teams">
+          <div class="card compose-card">
+            <!-- Alıcı satırı -->
+            <div class="compose-to-row">
+              <span class="compose-to-label" data-i18n="compose.to">To</span>
+              <div class="compose-to-content">
+                <div id="selected-chat-box" class="selected-chat-chip hidden">
+                  <span class="chip-avatar" id="selected-chat-avatar" data-icon="messages-square" data-icon-size="18"></span>
+                  <strong id="selected-chat-name"></strong>
+                  <span class="chat-type" id="selected-chat-type"></span>
+                  <button type="button" class="chip-remove" onclick="clearSelectedChat()" data-i18n-aria="compose.removeRecipient" aria-label="Remove"><span data-icon="x" data-icon-size="14"></span></button>
+                </div>
+                <div class="compose-recipient-search" id="compose-recipient-search">
+                  <input type="text" id="chat-search" data-i18n-placeholder="compose.searchRecipient" placeholder="Search…" autocomplete="off" />
+                </div>
+              </div>
+            </div>
+
+            <div id="recent-chats-row" class="recent-chats-row hidden">
+              <span class="muted small" data-i18n="compose.recent">Recent:</span>
+              <div id="recent-chats-chips" class="recent-chips"></div>
+            </div>
+
+            <div class="filter-tabs compact" id="chat-filters">
+              <button class="filter-tab active" data-filter="all" data-i18n="chats.filterAll">All</button>
+              <button class="filter-tab" data-filter="user" data-i18n="compose.filterContacts">Contacts</button>
+              <button class="filter-tab" data-filter="group" data-i18n="compose.filterGroups">Groups</button>
+              <button class="filter-tab" data-filter="channel" data-i18n="compose.filterChannels">Channels</button>
+            </div>
+
+            <div class="chat-list compose-chat-list" id="chat-list">
+              <div class="empty-state"><span class="empty-icon" data-icon="messages-square" data-icon-size="36"></span><p data-i18n="compose.emptyHint">Connect account first</p></div>
+            </div>
+
+            <!-- Mesaj alanı -->
+            <div class="compose-editor">
+              <textarea id="message-text" rows="6" maxlength="4096" data-i18n-placeholder="compose.messagePlaceholder" placeholder="Message…"></textarea>
+              <div class="compose-editor-footer">
+                <input type="file" id="compose-file-input" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx" onchange="onComposeFileSelected(event)" />
+                <button type="button" class="compose-icon-btn" onclick="document.getElementById('compose-file-input').click()" title="Dosya ekle" aria-label="Dosya ekle"><span data-icon="paperclip"></span></button>
+                <span id="compose-file-label" class="compose-file-label hidden"></span>
+                <select id="template-select" class="template-inline-select" data-i18n-title="compose.template" title="Template">
+                  <option value="" data-i18n="compose.template">Template</option>
+                </select>
+                <span class="char-count"><span id="char-count">0</span>/4096</span>
+              </div>
+            </div>
+
+            <!-- Teams tarzı alt aksiyon çubuğu -->
+            <div class="compose-action-bar">
+              <button type="button" class="btn secondary" id="btn-send-now" onclick="sendMessageNow()">
+                <span data-icon="rocket" data-icon-size="16"></span> <span data-i18n="compose.sendNow">Send Now</span>
+              </button>
+              <button type="button" class="btn primary schedule-btn" id="btn-open-schedule" onclick="openScheduleModal()">
+                <span data-icon="clock" data-icon-size="16"></span> <span data-i18n="compose.schedule">Schedule</span>
+              </button>
+            </div>
+            <p id="compose-status" class="status-msg"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scheduled -->
+      <section id="tab-scheduled" class="tab">
+        <header class="page-header row-header">
+          <div>
+            <div class="page-header-with-badge">
+              <h2 data-i18n="scheduled.titleFull">Scheduled Messages</h2>
+              <span class="platform-pill" id="scheduled-platform-pill"><span data-icon="brand-telegram" data-icon-size="16"></span> <span>Telegram</span></span>
+            </div>
+            <p id="scheduled-count-label" data-i18n="scheduled.subtitle">Your planned sends</p>
+          </div>
+          <button class="btn primary" onclick="switchTab('compose')" data-i18n="scheduled.newSchedule">+ New</button>
+        </header>
+
+        <div class="scheduled-toolbar">
+          <div class="scheduled-segments" id="scheduled-segments">
+            <button class="segment active" data-status="" onclick="setScheduledFilter('')" data-i18n="scheduled.filterAll">All</button>
+            <button class="segment" data-status="pending" onclick="setScheduledFilter('pending')" data-i18n="scheduled.filterPending">Pending</button>
+            <button class="segment" data-status="sent" onclick="setScheduledFilter('sent')" data-i18n="scheduled.filterSent">Sent</button>
+            <button class="segment" data-status="failed" onclick="setScheduledFilter('failed')" data-i18n="dashboard.failed">Failed</button>
+          </div>
+          <button class="btn secondary small" onclick="loadScheduled()"><span data-icon="refresh-cw" data-icon-size="14"></span></button>
+        </div>
+
+        <div id="scheduled-list" class="scheduled-list">
+          <div class="empty-state"><span class="empty-icon" data-icon="clock" data-icon-size="36"></span><p data-i18n="scheduled.loading">Loading…</p></div>
+        </div>
+      </section>
+
+      <!-- Templates -->
+      <section id="tab-templates" class="tab">
+        <header class="page-header">
+          <h2 data-i18n="templates.titleFull">Templates</h2>
+          <p data-i18n="templates.subtitle">Save messages</p>
+        </header>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 data-i18n="templates.newTitle">New template</h3>
+            <div class="field">
+              <label data-i18n="templates.titleLabel">Title</label>
+              <input type="text" id="template-title" data-i18n-placeholder="templates.titlePlaceholder" placeholder="Title" />
+            </div>
+            <div class="field">
+              <label data-i18n="templates.body">Message body</label>
+              <textarea id="template-text" rows="6" data-i18n-placeholder="templates.bodyPlaceholder" placeholder="Text"></textarea>
+            </div>
+            <button class="btn primary" onclick="saveTemplate()" data-i18n="templates.save">Save</button>
+          </div>
+          <div class="card">
+            <h3 data-i18n="templates.savedTitle">Saved</h3>
+            <div id="templates-list" class="templates-list">
+              <p class="muted" data-i18n="templates.empty">No templates</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Account -->
+      <section id="tab-account" class="tab">
+        <header class="page-header">
+          <h2 data-i18n="account.titleFull">Accounts</h2>
+          <p data-i18n="account.subtitle">Manage accounts</p>
+        </header>
+
+        <div class="platform-tabs-account" id="platform-tabs-account">
+          <button type="button" class="filter-tab active" data-platform="telegram" onclick="setPlatform('telegram'); switchTab('account')"><span data-icon="brand-telegram" data-icon-size="14"></span> Telegram</button>
+          <button type="button" class="filter-tab" data-platform="whatsapp" onclick="setPlatform('whatsapp'); switchTab('account')"><span data-icon="brand-whatsapp" data-icon-size="14"></span> WhatsApp</button>
+        </div>
+
+        <div class="account-panel-toolbar">
+          <button type="button" class="btn primary small" onclick="promptAddAccount()" data-i18n="account.addBtn">+ Add</button>
+        </div>
+
+        <div id="accounts-list" class="accounts-list">
+          <div class="empty-state"><span class="loading"></span><p data-i18n="account.loading">Loading…</p></div>
+        </div>
+
+        <div id="account-detail-panel" class="account-detail-panel hidden">
+          <div class="card" id="auth-connected" style="display:none">
+            <h3><span data-icon="circle-check" data-icon-size="18"></span> <span data-i18n="account.connectedTitle">Connected</span> <span class="account-detail-label muted" id="auth-connected-label"></span></h3>
+            <div class="user-info" id="user-info"></div>
+            <div class="account-detail-actions">
+              <button class="btn ghost small" onclick="setAccountFromPanel()" data-i18n="account.switchTo">Switch</button>
+              <button class="btn danger" onclick="logout()" data-i18n="account.logout">Sign out</button>
+            </div>
+          </div>
+
+          <div class="card" id="auth-form">
+            <h3><span data-i18n="account.linkTitle">Link account</span> <span class="account-detail-label muted" id="auth-form-label"></span></h3>
+            <p class="muted small">
+              <span data-i18n="account.credentialsNote">Encrypted credentials</span>
+            </p>
+            <div id="credentials-status" class="info-note" style="margin-bottom:12px;display:none"></div>
+
+            <div class="field tg-auth-field">
+              <label data-i18n="account.phone">Phone</label>
+              <input type="text" id="auth-phone" data-i18n-placeholder="account.phonePlaceholder" placeholder="+90..." />
+            </div>
+            <div class="field tg-auth-field">
+              <label data-i18n="account.apiId">API ID</label>
+              <input type="number" id="auth-api-id" data-i18n-placeholder="account.apiIdPlaceholder" placeholder="12345678" />
+            </div>
+            <div class="field tg-auth-field">
+              <label><span data-i18n="account.apiHash">API Hash</span> <span class="muted" data-i18n="account.apiHashHint">masked</span></label>
+              <input type="password" id="auth-api-hash" data-i18n-placeholder="account.apiHashPlaceholder" placeholder="New hash" autocomplete="off" />
+            </div>
+            <button class="btn ghost tg-auth-field" onclick="saveTelegramCredentials()"><span data-icon="lock" data-icon-size="14"></span> <span data-i18n="account.saveCredentials">Save</span></button>
+            <div class="btn-group-stack tg-auth-field" style="margin-top:8px">
+              <button class="btn primary" onclick="startAuth()"><span data-icon="smartphone" data-icon-size="14"></span> <span data-i18n="account.sendCode">Send code</span></button>
+              <button class="btn ghost" onclick="testSendNaber()" data-i18n="account.testNaber">Test</button>
+            </div>
+
+            <div id="code-step" class="hidden step tg-auth-field">
+              <div class="field">
+                <label data-i18n="account.telegramCode">Code</label>
+                <input type="text" id="auth-code" placeholder="12345" />
+              </div>
+              <button class="btn primary" onclick="verifyCode()" data-i18n="account.verify">Verify</button>
+            </div>
+
+            <div id="password-step" class="hidden step tg-auth-field">
+              <div class="field">
+                <label data-i18n="account.twoFa">2FA</label>
+                <input type="password" id="auth-password" />
+              </div>
+              <button class="btn primary" onclick="verifyPassword()" data-i18n="login.submit">Sign in</button>
+            </div>
+
+            <div class="wa-auth-field hidden">
+              <p class="muted" data-i18n="account.waLinkDesc">QR link</p>
+              <button class="btn primary wa-btn" onclick="openQrModal()"><span data-icon="qr-code" data-icon-size="14"></span> <span data-i18n="account.whatsappQr">Connect WhatsApp</span></button>
+              <div id="wa-stats-box" class="wa-stats-box hidden">
+                <span id="wa-stat-chats">— sohbet</span>
+                <span id="wa-stat-msgs">— mesaj</span>
+              </div>
+            </div>
+
+            <p id="auth-status" class="status-msg"></p>
+            <p id="wa-auth-status" class="status-msg hidden"></p>
+          </div>
+        </div>
+
+        <div class="card developer-card" id="developer-card">
+          <h3><span data-icon="settings" data-icon-size="18"></span> <span data-i18n="developer.title">Developer</span></h3>
+          <p class="muted small"><span data-i18n="developer.subtitle">API tools</span> <a href="/docs" target="_blank" rel="noopener" data-i18n="developer.apiDocs">API docs</a></p>
+          <div class="dev-grid">
+            <div>
+              <h4 data-i18n="account.apiKeys">API Keys</h4>
+              <div id="api-keys-list" class="dev-list muted small" data-i18n="developer.loading">Loading…</div>
+              <button class="btn secondary small" onclick="createApiKeyPrompt()">+ <span data-i18n="account.createKey">API Key</span></button>
+            </div>
+            <div>
+              <h4 data-i18n="account.webhooks">Webhooks</h4>
+              <div id="webhooks-list" class="dev-list muted small" data-i18n="developer.loading">Loading…</div>
+              <button class="btn secondary small" onclick="createWebhookPrompt()">+ <span data-i18n="account.createWebhook">Webhook</span></button>
+            </div>
+          </div>
+        </div>
+      </section>
+      </div><!-- /content-panels -->
+    </main>
+
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" data-i18n-aria="nav.mainMenu" aria-label="Main menu">
+      <button class="mob-nav-btn active" data-tab="dashboard" onclick="mobileNav('dashboard')">
+        <span data-icon="layout-dashboard"></span><small data-i18n="nav.dashboardShort">Home</small>
+      </button>
+      <button class="mob-nav-btn" data-tab="chats" onclick="mobileNav('chats')">
+        <span data-icon="messages-square"></span><small data-i18n="nav.chatsShort">Chats</small>
+      </button>
+      <button class="mob-nav-btn" data-tab="compose" onclick="mobileNav('compose')">
+        <span data-icon="mail"></span><small data-i18n="nav.composeShort">New</small>
+      </button>
+      <button class="mob-nav-btn" data-tab="scheduled" onclick="mobileNav('scheduled')">
+        <span data-icon="clock"></span><small data-i18n="nav.scheduledShort">Plan</small>
+      </button>
+      <button class="mob-nav-btn" data-tab="account" onclick="mobileNav('account')">
+        <span data-icon="user"></span><small data-i18n="nav.accountShort">Account</small>
+      </button>
+    </nav>
+  </div>
+
+  <script src="/static/js/icons.js?v={{ js_v }}"></script>
+  <script src="/static/js/i18n.js?v={{ js_v }}"></script>
+  <script src="/static/js/app.js?v={{ js_v }}"></script>
+</body>
+</html>

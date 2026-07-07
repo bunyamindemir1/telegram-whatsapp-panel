@@ -1,0 +1,34 @@
+name: Feature Request
+description: Yeni bir özellik önerin
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hangi sorunu çözüyor?
+      placeholder: Örn. Zamanlanmış medya gönderimi yok...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Önerilen çözüm
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatifler
+      description: Düşündüğünüz başka yaklaşımlar var mı?
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Öncelik (sizin için)
+      options:
+        - Düşük
+        - Orta
+        - Yüksek

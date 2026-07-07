@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Telegram session
+sessions/
+*.session
+*.session-journal
+
+# Data
+data/
+whatsapp-bridge/node_modules/
+.env
+.setup-credentials.txt
+
+# Setup artifacts
+*.log
+.run/
+
+# Test / tooling
+.pytest_cache/
+htmlcov/
+.coverage
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
