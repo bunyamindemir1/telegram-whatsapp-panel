@@ -116,7 +116,19 @@ html[data-theme="light"] {
   box-shadow: 0 0 0 1px var(--accent);
   outline: none;
 }
-.setup-platform-icon { margin-bottom: 4px; }
+.setup-platform-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 8px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.setup-platform-icon .icon { width: 28px; height: 28px; }
+.setup-platform-card[data-platform="telegram"] .setup-platform-icon .icon { color: #2aabee; }
+.setup-platform-card[data-platform="whatsapp"] .setup-platform-icon .icon { color: #25d366; }
 @media (max-width: 520px) {
   .setup-platform-grid { grid-template-columns: 1fr; }
 }
@@ -1085,7 +1097,6 @@ textarea { resize: vertical; min-height: 130px; }
 }
 .login-brand-title { font-size: 1.15rem; margin: 0; line-height: 1.3; }
 .login-brand-tagline { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
-.login-icon { font-size: 2.5rem; margin-bottom: 8px; }
 .login-card h2 { margin-bottom: 6px; }
 .login-card > p { color: var(--muted); margin-bottom: 18px; }
 .login-card .field { text-align: left; }

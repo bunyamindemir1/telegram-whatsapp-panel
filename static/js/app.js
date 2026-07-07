@@ -1637,12 +1637,21 @@ function closeMediaLightbox() {
 function initTheme() {
   const saved = localStorage.getItem("mesaj_theme") || "dark";
   document.documentElement.dataset.theme = saved;
+  updateThemeIcon();
+}
+
+function updateThemeIcon() {
+  const el = document.getElementById("theme-icon");
+  if (!el) return;
+  const isDark = document.documentElement.dataset.theme !== "light";
+  setIcon(el, isDark ? "moon" : "sun", { size: 14, class: "icon" });
 }
 
 function toggleTheme() {
   const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
   localStorage.setItem("mesaj_theme", next);
+  updateThemeIcon();
 }
 
 let accountSetupPlatform = null;

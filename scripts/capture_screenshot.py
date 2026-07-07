@@ -87,6 +87,8 @@ def main() -> None:
 
         page.goto(f"{url}/?lang=en")
         page.wait_for_selector("#login-overlay")
+        page.wait_for_selector(".login-icon svg", timeout=8000)
+        page.wait_for_selector(".login-brand-icon svg", timeout=8000)
         page.wait_for_timeout(400)
         page.screenshot(path=str(LOGIN_OUT), full_page=False)
         HERO_OUT.write_bytes(LOGIN_OUT.read_bytes())
@@ -95,6 +97,7 @@ def main() -> None:
         page.fill("#panel-password", "ScreenshotDemo9!")
         page.click("#panel-login-btn")
         page.wait_for_selector("#login-overlay.hidden", state="attached", timeout=8000)
+        page.wait_for_selector(".sidebar .nav-icon svg", timeout=8000)
         page.wait_for_selector(".sidebar")
         page.wait_for_timeout(800)
         setup_visible = page.locator("#account-setup-overlay:not(.hidden)")
