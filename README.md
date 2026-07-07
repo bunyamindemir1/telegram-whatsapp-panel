@@ -90,14 +90,14 @@ Use your **real user accounts** (not bot-only APIs) from one web panel:
 ```bash
 git clone https://github.com/bunyamindemir1/telegram-whatsapp-panel.git
 cd telegram-whatsapp-panel
-chmod +x setup.sh && ./setup.sh
+make setup
 ```
 
 Open **http://localhost:8000** — admin password is printed once (also in `.setup-credentials.txt`).
 
 | Step | What happens |
 |------|----------------|
-| **1** | `./setup.sh` generates secure `.env` and starts Docker containers |
+| **1** | `make setup` generates secure `.env` and starts Docker containers |
 | **2** | Log in with `admin` + generated password |
 | **3** | **First-run wizard** — pick Telegram or WhatsApp |
 
@@ -108,15 +108,15 @@ Open **http://localhost:8000** — admin password is printed once (also in `.set
 | **4** | Connect: Telegram API + phone code **or** WhatsApp QR scan |
 | **5** | Send, schedule, or automate via API |
 
-> First build ~2–3 min. Later: `./setup.sh --fast` (~10 s).
+> First build ~2–3 min. Later: `make setup -- --fast` (~10 s).
 
 <details>
 <summary><strong>Local dev without Docker (~30 s)</strong></summary>
 
 ```bash
-./install.sh && ./start.sh    # or: make quick
+make quick                    # install + start locally
 ./scripts/smoke_local.sh      # health + i18n check
-./stop.sh
+make stop
 ```
 
 WhatsApp bridge starts automatically — no second terminal.
@@ -219,7 +219,7 @@ Full reference: [docs/API.md](docs/API.md)
 | WhatsApp | Node.js, @whiskeysockets/baileys |
 | Frontend | Vanilla JS, Lucide icons |
 | Database | SQLite |
-| Deploy | Docker Compose, optional local `install.sh` |
+| Deploy | Docker Compose, optional local `make quick` |
 
 ---
 
@@ -231,10 +231,12 @@ telegram-whatsapp-panel/
 ├── whatsapp-bridge/     # Baileys Node service
 ├── templates/ static/   # Web UI
 ├── locales/             # 15-language translations
-├── docs/                # Guides + screenshots
+├── docs/                # Guides, changelog, support
+├── scripts/             # setup, install, dev tools
 ├── tests/               # 117+ pytest + Playwright E2E
-├── setup.sh             # One-command Docker install
-└── install.sh start.sh  # Fast local dev
+├── Makefile             # make setup | quick | test
+├── docker-compose.yml
+└── README.md
 ```
 
 Details: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
@@ -244,7 +246,7 @@ Details: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 ## 🤝 Contributing & support
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup & PR flow  
-- [SUPPORT.md](SUPPORT.md) — bugs & questions  
+- [docs/SUPPORT.md](docs/SUPPORT.md) — bugs & questions  
 - [FAQ.md](docs/FAQ.md) — common issues  
 
 ```bash
@@ -276,12 +278,12 @@ make preflight     # pre-publish checks
 ```bash
 git clone https://github.com/bunyamindemir1/telegram-whatsapp-panel.git
 cd telegram-whatsapp-panel
-chmod +x setup.sh && ./setup.sh
+make setup
 ```
 
 Tarayıcı: **http://127.0.0.1:8000** → giriş → **ilk hesap sihirbazı** (Telegram veya WhatsApp)
 
-Yerel geliştirme: `./install.sh && ./start.sh` veya `make quick`
+Yerel geliştirme: `make quick`
 
 ### Özellikler
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Start panel locally in ~5s (after install.sh)
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 # shellcheck disable=SC1091
-source "$ROOT/scripts/lib/common.sh"
+source "$SCRIPT_DIR/lib/common.sh"
 
 PORT="${PORT:-8000}"
 FORCE_ENV=0
@@ -14,14 +15,14 @@ while [[ $# -gt 0 ]]; do
     --force-env) FORCE_ENV=1; shift ;;
     --port) PORT="${2:?}"; shift 2 ;;
     -h|--help)
-      echo "Usage: ./start.sh [--port 8000] [--force-env]"
+      echo "Usage: make start  (or ./scripts/start.sh [--port 8000] [--force-env])"
       exit 0 ;;
     *) echo "Unknown: $1"; exit 1 ;;
   esac
 done
 
 if [[ ! -d .venv ]]; then
-  echo "Run ./install.sh first"
+  echo "Run make install first"
   exit 1
 fi
 
@@ -35,7 +36,7 @@ else
 fi
 
 if lsof -ti:"$PORT" >/dev/null 2>&1; then
-  echo "Port $PORT in use — stop with ./stop.sh or use --port"
+  echo "Port $PORT in use — stop with make stop or use --port"
   exit 1
 fi
 
@@ -64,5 +65,5 @@ echo "  Docs  : http://127.0.0.1:${PORT}/docs"
 if [[ -n "${ADMIN_PASS:-}" ]]; then
   echo "  Login : admin — password in .setup-credentials.txt"
 fi
-echo "  Stop  : ./stop.sh"
+echo "  Stop  : make stop"
 echo "  Logs  : tail -f .run/panel.log"

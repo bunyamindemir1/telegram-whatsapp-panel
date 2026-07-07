@@ -2,10 +2,10 @@
 
 ## Documentation
 
-- [Quick Start](docs/QUICKSTART.md)
-- [FAQ](docs/FAQ.md)
-- [API](docs/API.md)
-- [Self-hosting](docs/SELF_HOSTING.md)
+- [Quick Start](QUICKSTART.md)
+- [FAQ](FAQ.md)
+- [API](API.md)
+- [Self-hosting](SELF_HOSTING.md)
 
 ## Bug reports & features
 
@@ -18,9 +18,9 @@ Open a [GitHub Issue](https://github.com/bunyamindemir1/telegram-whatsapp-panel/
 
 ## Security issues
 
-Do **not** open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).
+Do **not** open public issues for vulnerabilities. See [SECURITY.md](../SECURITY.md).
 
 ## Community
 
-- English index: [docs/en/README.md](docs/en/README.md)
-- Türkçe: [docs/tr/README.md](docs/tr/README.md)
+- English index: [en/README.md](en/README.md)
+- Türkçe: [tr/README.md](tr/README.md)

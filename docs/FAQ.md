@@ -6,14 +6,14 @@
 
 - **İlk Docker build:** 2–3 dakika (bağımlılık indirme)
 - **Sonraki başlatmalar:** ~10–30 saniye
-- `./setup.sh` komutu `.env` oluşturma + konteyner başlatma dahil **1 dakikanın altında** biter (image cache varsa)
+- `make setup` komutu `.env` oluşturma + konteyner başlatma dahil **1 dakikanın altında** biter (image cache varsa)
 
 ### Docker olmadan kurabilir miyim?
 
 Evet:
 
 ```bash
-./setup.sh --local
+make setup -- --local
 source .venv/bin/activate && python run.py
 # ayrı terminal: cd whatsapp-bridge && node server.js
 ```
@@ -21,7 +21,7 @@ source .venv/bin/activate && python run.py
 ### Port 8000 meşgul
 
 ```bash
-./setup.sh --port 8080
+make setup -- --port 8080
 ```
 
 veya `.env` içinde `PORT=8080` değiştirin.
@@ -30,7 +30,7 @@ veya `.env` içinde `PORT=8080` değiştirin.
 
 ### Varsayılan şifre güvenli mi?
 
-`setup.sh` rastgele 16 karakterlik şifre üretir. `.setup-credentials.txt` dosyasını kaydettikten sonra silin.
+`make setup` rastgele 16 karakterlik şifre üretir. `.setup-credentials.txt` dosyasını kaydettikten sonra silin.
 
 ### İnternete açmak güvenli mi?
 

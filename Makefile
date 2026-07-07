@@ -3,18 +3,18 @@ PYTHON ?= python3.9
 .PHONY: setup quick install start stop smoke preflight dev test e2e locales screenshot publish-check docker-up docker-down docker-logs clean
 
 setup:
-	@chmod +x setup.sh install.sh start.sh stop.sh scripts/smoke_local.sh && ./setup.sh
+	@chmod +x scripts/setup.sh scripts/install.sh scripts/start.sh scripts/stop.sh scripts/smoke_local.sh && ./scripts/setup.sh
 
 quick: install start
 
 install:
-	@chmod +x install.sh && ./install.sh
+	@chmod +x scripts/install.sh && ./scripts/install.sh
 
 start:
-	@chmod +x start.sh && ./start.sh
+	@chmod +x scripts/start.sh && ./scripts/start.sh
 
 stop:
-	@chmod +x stop.sh && ./stop.sh
+	@chmod +x scripts/stop.sh && ./scripts/stop.sh
 
 smoke:
 	@chmod +x scripts/smoke_local.sh && ./scripts/smoke_local.sh

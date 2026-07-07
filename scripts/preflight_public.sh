@@ -20,9 +20,9 @@ REQUIRED=(
   README.md
   CONTRIBUTING.md
   SECURITY.md
-  CODE_OF_CONDUCT.md
-  CHANGELOG.md
-  SUPPORT.md
+  .github/CODE_OF_CONDUCT.md
+  docs/CHANGELOG.md
+  docs/SUPPORT.md
   .github/CODEOWNERS
   .github/dependabot.yml
   .github/workflows/ci.yml

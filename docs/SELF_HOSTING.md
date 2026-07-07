@@ -3,7 +3,7 @@
 ## Docker Compose (önerilen)
 
 ```bash
-./setup.sh
+make setup
 ```
 
 Üretim ortamı için `.env` değerlerini gözden geçirin:

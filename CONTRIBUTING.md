@@ -7,8 +7,7 @@ Thank you for helping make this project better!
 ```bash
 git clone https://github.com/bunyamindemir1/telegram-whatsapp-panel.git
 cd telegram-whatsapp-panel
-./install.sh && ./start.sh    # or: make quick
-# or Docker: ./setup.sh
+make quick                    # or: make setup for Docker
 ```
 
 Panel: http://127.0.0.1:8000 · After login, the **first account wizard** guides Telegram/WhatsApp setup.
@@ -22,7 +21,7 @@ make locales
 make preflight
 ```
 
-Update `CHANGELOG.md` under `[Unreleased]` for user-facing changes.
+Update `docs/CHANGELOG.md` under `[Unreleased]` for user-facing changes.
 
 ## Code guidelines
 

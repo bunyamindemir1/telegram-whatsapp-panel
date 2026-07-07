@@ -16,10 +16,10 @@ services:
       WHATSAPP_BRIDGE_URL: http://whatsapp-bridge:3001
       PANEL_URL: http://panel:8000
       ALLOW_OUTBOUND_MESSAGES: ${ALLOW_OUTBOUND_MESSAGES:-false}
-      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env — run ./setup.sh}
-      BRIDGE_SECRET: ${BRIDGE_SECRET:?Set BRIDGE_SECRET in .env — run ./setup.sh}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env — run make setup}
+      BRIDGE_SECRET: ${BRIDGE_SECRET:?Set BRIDGE_SECRET in .env — run make setup}
       PANEL_ADMIN_USER: ${PANEL_ADMIN_USER:-admin}
-      PANEL_ADMIN_PASSWORD: ${PANEL_ADMIN_PASSWORD:?Set PANEL_ADMIN_PASSWORD in .env — run ./setup.sh}
+      PANEL_ADMIN_PASSWORD: ${PANEL_ADMIN_PASSWORD:?Set PANEL_ADMIN_PASSWORD in .env — run make setup}
       REQUIRE_PANEL_AUTH: "true"
       TELEGRAM_PHONE: ${TELEGRAM_PHONE:-}
       TIMEZONE: ${TIMEZONE:-Europe/Istanbul}
@@ -48,7 +48,7 @@ services:
       WHATSAPP_BRIDGE_PORT: 3001
       PANEL_URL: http://panel:8000
       DATA_DIR: /app/data
-      BRIDGE_SECRET: ${BRIDGE_SECRET:?Set BRIDGE_SECRET in .env — run ./setup.sh}
+      BRIDGE_SECRET: ${BRIDGE_SECRET:?Set BRIDGE_SECRET in .env — run make setup}
       ALLOW_OUTBOUND_MESSAGES: ${ALLOW_OUTBOUND_MESSAGES:-false}
     volumes:
       - wa_data:/app/data

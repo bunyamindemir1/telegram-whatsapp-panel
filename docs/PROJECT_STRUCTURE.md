@@ -12,7 +12,7 @@ telegram-whatsapp-panel/
 │   ├── whatsapp_service.py
 │   └── ...
 ├── locales/                # UI translations (15 JSON files)
-│   ├── en.json             # Master keys (219 strings)
+│   ├── en.json             # Master keys (391 strings)
 │   ├── tr.json
 │   ├── ar.json             # RTL
 │   └── ...
@@ -30,21 +30,22 @@ telegram-whatsapp-panel/
 │   ├── tr/                 # Turkish docs index
 │   ├── QUICKSTART.md
 │   ├── API.md
+│   ├── CHANGELOG.md
+│   ├── SUPPORT.md
 │   └── assets/
-├── tests/
-│   ├── test_*.py           # Unit & integration (pytest + httpx)
-│   ├── test_i18n.py        # Locale integrity
-│   └── e2e/                # Playwright browser tests
 ├── scripts/
+│   ├── setup.sh            # Docker install (via make setup)
+│   ├── install.sh start.sh stop.sh
 │   ├── validate_locales.py
-│   └── setup.sh            # (root) one-command Docker install
+│   └── preflight_public.sh
 ├── .github/
+│   ├── CODE_OF_CONDUCT.md
 │   ├── workflows/ci.yml
 │   ├── ISSUE_TEMPLATE/
 │   └── FUNDING.yml
-├── setup.sh
-├── Makefile
+├── Makefile                # make setup | quick | test
 ├── docker-compose.yml
+├── pyproject.toml
 └── README.md
 ```
 

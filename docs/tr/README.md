@@ -5,7 +5,7 @@ Ana rehber: [QUICKSTART.md](../QUICKSTART.md)
 ```bash
 git clone https://github.com/bunyamindemir1/telegram-whatsapp-panel.git
 cd telegram-whatsapp-panel
-chmod +x setup.sh && ./setup.sh
+make setup
 ```
 
 **http://localhost:8000** adresini açın. Dil: kenar çubuğundan veya `?lang=tr` ile Türkçe.

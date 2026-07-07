@@ -22,16 +22,16 @@ def test_governance_files_exist():
         "README.md",
         "CONTRIBUTING.md",
         "SECURITY.md",
-        "CODE_OF_CONDUCT.md",
-        "CHANGELOG.md",
-        "SUPPORT.md",
+        ".github/CODE_OF_CONDUCT.md",
+        "docs/CHANGELOG.md",
+        "docs/SUPPORT.md",
         ".github/CODEOWNERS",
         ".github/dependabot.yml",
         ".github/workflows/ci.yml",
     ]
     for name in required:
         assert (ROOT / name).is_file(), f"Missing governance file: {name}"
-    for name in ("install.sh", "start.sh", "stop.sh", "scripts/smoke_local.sh"):
+    for name in ("scripts/install.sh", "scripts/start.sh", "scripts/stop.sh", "scripts/smoke_local.sh"):
         path = ROOT / name
         assert path.is_file(), f"Missing {name}"
         assert path.stat().st_mode & 0o111, f"{name} should be executable"

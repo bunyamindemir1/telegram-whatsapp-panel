@@ -39,7 +39,7 @@ Mesaj Paneli is a **self-hosted** tool that connects to **your own** Telegram an
 
 ### Production checklist
 
-- Run `./setup.sh` (generates strong secrets) — never use placeholder values
+- Run `make setup` (generates strong secrets) — never use placeholder values
 - Set `ENV=production` and `REQUIRE_PANEL_AUTH=true`
 - `SESSION_SECRET`, `BRIDGE_SECRET`, `PANEL_ADMIN_PASSWORD` must be unique (app refuses weak defaults)
 - Use HTTPS via reverse proxy (nginx, Caddy, Traefik)

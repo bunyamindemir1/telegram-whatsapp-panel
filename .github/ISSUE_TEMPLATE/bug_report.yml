@@ -28,7 +28,7 @@ body:
       label: Tekrar adımları
       description: Hatayı nasıl tekrarlayabiliriz?
       placeholder: |
-        1. ./setup.sh çalıştırdım
+        1. make setup çalıştırdım
         2. WhatsApp QR taradım
         3. Mesaj gönder dedim
         4. Hata aldım
@@ -60,7 +60,7 @@ body:
     attributes:
       label: Kurulum yöntemi
       options:
-        - Docker (setup.sh)
+        - Docker (make setup)
         - Docker (manuel)
         - Yerel (python run.py)
         - Diğer

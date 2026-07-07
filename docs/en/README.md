@@ -5,7 +5,7 @@ See the main guide: [QUICKSTART.md](../QUICKSTART.md)
 ```bash
 git clone https://github.com/bunyamindemir1/telegram-whatsapp-panel.git
 cd telegram-whatsapp-panel
-chmod +x setup.sh && ./setup.sh
+make setup
 ```
 
 Open **http://localhost:8000** — default language is English (auto-detects browser).

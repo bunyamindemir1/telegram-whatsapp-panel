@@ -2,10 +2,11 @@
 # Mesaj Paneli — one-command setup (Docker, <1 min after images are cached)
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 # shellcheck disable=SC1091
-source "$ROOT/scripts/lib/common.sh"
+source "$SCRIPT_DIR/lib/common.sh"
 
 MODE="docker"
 FORCE=0
@@ -17,14 +18,14 @@ usage() {
 Mesaj Paneli — Kurulum
 
 Kullanım:
-  ./setup.sh              Docker ile kur (önerilen)
-  ./setup.sh --fast       Docker — imaj varsa build atla (~10 sn)
-  ./setup.sh --local      Yerel geliştirme (install.sh + start.sh)
-  ./setup.sh --force      Mevcut .env dosyasının üzerine yaz
-  ./setup.sh --port 8080  Panel portu (varsayılan: 8000)
+  make setup              Docker ile kur (önerilen)
+  ./scripts/setup.sh --fast       Docker — imaj varsa build atla (~10 sn)
+  ./scripts/setup.sh --local      Yerel geliştirme (install + start)
+  ./scripts/setup.sh --force      Mevcut .env dosyasının üzerine yaz
+  ./scripts/setup.sh --port 8080  Panel portu (varsayılan: 8000)
 
 Hızlı yerel geliştirme (Docker yok):
-  ./install.sh && ./start.sh    # ~30 sn (önbellekli)
+  make quick    # veya: ./scripts/install.sh && ./scripts/start.sh
 
 Gereksinimler (Docker):
   - Docker 24+ ve Docker Compose v2
@@ -53,7 +54,7 @@ red() { printf '\033[31m%s\033[0m\n' "$*"; }
 ensure_env() {
   if [[ -f .env && "$FORCE" -eq 0 ]]; then
     yellow "⚠️  .env zaten var — mevcut ayarlar korunuyor."
-    yellow "    Yeniden oluşturmak için: ./setup.sh --force"
+    yellow "    Yeniden oluşturmak için: make setup -- --force"
     # shellcheck disable=SC1091
     set +u; source .env 2>/dev/null || true; set -u
     ADMIN_PASS="${PANEL_ADMIN_PASSWORD:-}"
@@ -115,19 +116,19 @@ setup_docker() {
   echo "    2. Hesap → Telegram API veya WhatsApp QR bağlayın"
   echo "    3. docs/QUICKSTART.md rehberine bakın"
   echo ""
-  echo "  Tekrar başlatma: ./setup.sh --fast"
+  echo "  Tekrar başlatma: make setup -- --fast"
   echo ""
 }
 
 setup_local() {
-  chmod +x install.sh start.sh stop.sh 2>/dev/null || true
-  ./install.sh
+  chmod +x "$SCRIPT_DIR"/install.sh "$SCRIPT_DIR"/start.sh "$SCRIPT_DIR"/stop.sh 2>/dev/null || true
+  "$SCRIPT_DIR/install.sh"
   if [[ ! -f .env || "$FORCE" -eq 1 ]]; then
     write_env_file "$PORT" local
   fi
   echo ""
   green "Yerel kurulum tamam. Başlatmak için:"
-  echo "  ./start.sh"
+  echo "  make start"
   echo ""
   yellow "Tek komut (kur + başlat): make quick"
 }

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fast local dependency install (~15–45s, cached)
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 PYTHON="${PYTHON:-python3.9}"
@@ -36,4 +37,4 @@ PID_NP=$!
 
 wait "$PID_PY" "$PID_NP"
 mkdir -p data sessions .run locales
-green "✓ Install complete — run: ./start.sh"
+green "✓ Install complete — run: make start"

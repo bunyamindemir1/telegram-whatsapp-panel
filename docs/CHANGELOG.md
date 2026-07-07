@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Cleaner repo root** — shell scripts moved to `scripts/`, governance docs to `docs/` and `.github/`
+- `pyproject.toml` replaces `pytest.ini`; primary install via `make setup`
+
 ### Added
 - **First account wizard** — after login, guided Telegram/WhatsApp connect flow
 - Dashboard **Connect now** banner when no account is linked
