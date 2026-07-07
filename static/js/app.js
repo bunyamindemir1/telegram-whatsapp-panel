@@ -90,6 +90,7 @@ function refreshI18nLabels() {
   PLATFORM_LABELS.telegram = tt("platform.telegram");
   PLATFORM_LABELS.whatsapp = tt("platform.whatsapp");
   if (typeof applyI18n === "function") applyI18n();
+  updateThemeUI();
   updatePlatformChrome();
   const activeTab = document.querySelector(".nav-btn.active")?.dataset?.tab;
   if (activeTab) updateMobileChrome(activeTab);
@@ -844,6 +845,7 @@ function showLoginOverlay(setupRequired) {
   const btn = document.getElementById("panel-login-btn");
 
   overlay.classList.remove("hidden");
+  initIcons(overlay);
   if (setupRequired) {
     title.textContent = tt("login.setupTitle");
     subtitle.textContent = tt("login.setupSubtitle");
@@ -1637,22 +1639,31 @@ function closeMediaLightbox() {
 function initTheme() {
   const saved = localStorage.getItem("mesaj_theme") || "dark";
   document.documentElement.dataset.theme = saved;
-  updateThemeIcon();
+  updateThemeUI();
 }
 
-function updateThemeIcon() {
-  const el = document.getElementById("theme-icon");
-  if (!el) return;
+function updateThemeUI() {
   const isDark = document.documentElement.dataset.theme !== "light";
-  setIcon(el, isDark ? "moon" : "sun", { size: 14, class: "icon" });
+  const iconEl = document.getElementById("theme-icon");
+  const labelEl = document.getElementById("theme-label");
+  const btn = document.getElementById("theme-toggle-btn");
+  const meta = document.getElementById("meta-theme-color");
+  if (iconEl) setIcon(iconEl, isDark ? "moon" : "sun", { size: 14, class: "icon" });
+  const targetKey = isDark ? "theme.light" : "theme.dark";
+  if (labelEl) labelEl.textContent = tt(targetKey);
+  if (btn) btn.title = tt(targetKey);
+  if (meta) meta.setAttribute("content", isDark ? "#0b0f14" : "#f4f7fb");
 }
 
 function toggleTheme() {
   const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
   localStorage.setItem("mesaj_theme", next);
-  updateThemeIcon();
+  updateThemeUI();
 }
+
+window.updateThemeUI = updateThemeUI;
+window.toggleTheme = toggleTheme;
 
 let accountSetupPlatform = null;
 let accountSetupDismissed = false;
@@ -2703,18 +2714,40 @@ document.getElementById("template-select")?.addEventListener("change", async (e)
   useTemplate(parseInt(e.target.value));
 });
 
+function startRefreshTimer() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    if (document.hidden) return;
+    loadStats();
+    updateMiniStatus();
+    if (document.getElementById("tab-scheduled")?.classList.contains("active")) loadScheduled();
+  }, 15000);
+}
+
 // ─── Init ────────────────────────────────────────────
 async function init() {
-  initTheme();
   initIcons();
   updatePlatformChrome();
   connectWebSocket();
   updateMobileChrome("dashboard");
   renderRecentChats();
-  window.addEventListener("resize", () => setChatThreadOpen(!!activeThreadChat));
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => setChatThreadOpen(!!activeThreadChat), 150);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = null;
+    } else {
+      loadStats();
+      updateMiniStatus();
+      startRefreshTimer();
+    }
+  });
   try {
-    await loadAccounts("telegram");
-    await loadAccounts("whatsapp");
+    await Promise.all([loadAccounts("telegram"), loadAccounts("whatsapp")]);
     const cfg = await api("/api/config");
     const phoneEl = document.getElementById("auth-phone");
     if (phoneEl && cfg.telegram_phone_masked && !phoneEl.value) {
@@ -2728,15 +2761,16 @@ async function init() {
   await loadTemplates();
   renderAccountSwitcher();
   await initPostLoginFlow();
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(() => {
-    loadStats();
-    updateMiniStatus();
-    if (document.getElementById("tab-scheduled").classList.contains("active")) loadScheduled();
-  }, 15000);
+  startRefreshTimer();
 }
 
-checkPanelAuth().then((ok) => { if (ok) init(); });
+function bootPanel() {
+  initTheme();
+  initIcons();
+  checkPanelAuth().then((ok) => { if (ok) init(); });
+}
+
+bootPanel();
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeScheduleModal();

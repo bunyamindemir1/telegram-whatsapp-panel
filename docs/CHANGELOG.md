@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- **UI polish** — Inter font, theme tokens (`--accent`), sidebar/footer styling, language selector, theme toggle labels
+- Theme applies before login; light/dark icon + label sync; refresh timer pauses when tab hidden
 - **Minimal repo root** — only `README.md`, `LICENSE`, `Makefile`, `docker-compose.yml` at top level
 - Config moved to `config/`, panel Dockerfile to `docker/Dockerfile`, `run.py` to `scripts/`
 - `CONTRIBUTING.md` and `SECURITY.md` moved to `docs/`
