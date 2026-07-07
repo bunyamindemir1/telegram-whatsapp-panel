@@ -263,7 +263,7 @@ async def v1_create_auto_reply(body: V1AutoReplyRequest):
 @router.delete("/auto-replies/{rule_id}", dependencies=[Depends(require_v1_auth)])
 async def v1_delete_auto_reply(rule_id: int):
     if not await delete_auto_reply_rule(rule_id):
-        raise HTTPException(status_code=404, detail=E.API_KEY_NOT_FOUND)
+        raise HTTPException(status_code=404, detail=E.AUTO_REPLY_NOT_FOUND)
     return {"ok": True}
 
 

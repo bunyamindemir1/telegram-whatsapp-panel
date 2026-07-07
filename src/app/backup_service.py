@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -88,6 +88,15 @@ async def import_panel_backup(data: dict[str, Any], *, merge: bool = True) -> di
     counts = {"templates": 0, "auto_replies": 0, "scheduled": 0, "follow_ups": 0}
 
     if not merge:
+        from app.scheduler_service import cancel_job
+
+        async with async_session() as session:
+            job_ids = [
+                j.id
+                for j in (await session.execute(select(ScheduledMessage))).scalars().all()
+            ]
+        for jid in job_ids:
+            await cancel_job(jid)
         async with async_session() as session:
             for model in (MessageTemplate, AutoReplyRule, ScheduledMessage, FollowUpReminder):
                 for row in (await session.execute(select(model))).scalars().all():
@@ -157,13 +166,21 @@ async def import_panel_backup(data: dict[str, Any], *, merge: bool = True) -> di
     for fu in data.get("follow_ups") or []:
         if not fu.get("chat_id") or not fu.get("reminder_text"):
             continue
+        wait_hours = int(fu.get("wait_hours") or 24)
+        due_at = None
+        anchor_at = None
+        if fu.get("due_at"):
+            due_at = datetime.fromisoformat(fu["due_at"].replace("Z", ""))
+            anchor_at = due_at - timedelta(hours=wait_hours)
         await create_follow_up(
             platform=fu.get("platform", "telegram"),
             chat_id=fu["chat_id"],
             reminder_text=fu["reminder_text"],
-            wait_hours=int(fu.get("wait_hours") or 24),
+            wait_hours=wait_hours,
             account_id=fu.get("account_id"),
             chat_name=fu.get("chat_name") or fu["chat_id"],
+            due_at=due_at,
+            anchor_at=anchor_at,
         )
         counts["follow_ups"] += 1
 

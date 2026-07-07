@@ -1,4 +1,8 @@
 let currentPlatform = "telegram";
+
+function threadPlatform() {
+  return activeThreadChat?.platform || currentPlatform;
+}
 let platformSwitching = false;
 let accountSwitching = false;
 let currentAccountId = { telegram: 1, whatsapp: 1 };
@@ -2092,7 +2096,7 @@ async function searchMessagesGlobal(query) {
       return;
     }
     box.innerHTML = results.map((r) =>
-      `<button type="button" class="search-result-item" onclick="openThread('${encodeURIComponent(r.chat_id)}')">
+      `<button type="button" class="search-result-item" onclick="openThreadFromSearch('${encodeURIComponent(r.chat_id)}', '${escapeHtml(r.platform || currentPlatform)}')">
         <strong>${escapeHtml(r.chat_name || r.chat_id)}</strong>
         <span class="muted small">${formatMessageTime(r.timestamp)}</span>
         <p>${escapeHtml((r.text || "").slice(0, 80))}</p>
@@ -2212,6 +2216,14 @@ function openThreadFromEl(el) {
   openThread(decodeURIComponent(el.dataset.chatId));
 }
 
+function openThreadFromSearch(chatId, platform) {
+  const plat = platform || currentPlatform;
+  if (plat !== currentPlatform) {
+    setPlatform(plat);
+  }
+  openThread(decodeURIComponent(chatId));
+}
+
 function openRenameChatModal() {
   if (!activeThreadChat) return;
   const overlay = document.getElementById("rename-chat-overlay");
@@ -2237,7 +2249,7 @@ async function confirmRenameChat() {
   const label = (input?.value || "").trim();
   if (!label) { toastT("toast.enterName", "error"); return; }
   try {
-    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/label`), {
+    const r = await api(withAccountId(`/api/conversations/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}/label`), {
       method: "PATCH",
       body: JSON.stringify({ label }),
     });
@@ -2272,7 +2284,7 @@ async function openThread(id, restoreOnly = false) {
   setChatThreadOpen(true);
   const header = document.getElementById("chat-header");
   header.classList.remove("hidden");
-  header.classList.toggle("wa-header", currentPlatform === "whatsapp");
+  header.classList.toggle("wa-header", threadPlatform() === "whatsapp");
   document.getElementById("chat-compose").classList.remove("hidden");
   const disp = getChatDisplay(activeThreadChat);
   document.getElementById("chat-header-name").textContent = disp.title;
@@ -2280,13 +2292,13 @@ async function openThread(id, restoreOnly = false) {
   const av = document.getElementById("chat-header-avatar");
   if (av) {
     av.textContent = chatInitials(disp.title);
-    av.className = `chat-header-avatar ${currentPlatform === "whatsapp" ? "wa-avatar" : "tg-avatar"}`;
+    av.className = `chat-header-avatar ${threadPlatform() === "whatsapp" ? "wa-avatar" : "tg-avatar"}`;
   }
   updateConnectionBadge();
   const pinBtn = document.getElementById("btn-pin-chat");
   if (pinBtn) pinBtn.classList.toggle("active", !!activeThreadChat.is_pinned);
   const replyEl = document.getElementById("chat-reply");
-  if (replyEl && !replyEl.value) replyEl.value = loadDraft(`chat-reply:${currentPlatform}:${id}`) || "";
+  if (replyEl && !replyEl.value) replyEl.value = loadDraft(`chat-reply:${threadPlatform()}:${id}`) || "";
 
   if (restoreOnly && threadMessages.length) {
     renderThreadMessages(threadMessages);
@@ -2318,7 +2330,7 @@ async function loadMoreThreadMessages() {
   if (!oldest?.id) return;
   try {
     const older = await api(
-      withAccountId(`/api/messages/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}?limit=50&before_id=${oldest.id}`)
+      withAccountId(`/api/messages/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}?limit=50&before_id=${oldest.id}`)
     );
     if (!older.length) {
       threadHasMore = false;
@@ -2341,7 +2353,7 @@ async function sendChatReply() {
     await api(withAccountId("/api/messages/send"), {
       method: "POST",
       body: JSON.stringify({
-        platform: currentPlatform,
+        platform: threadPlatform(),
         chat_id: activeThreadChat.id,
         message: text,
         chat_name: activeThreadChat.name,
@@ -2353,7 +2365,7 @@ async function sendChatReply() {
     saveDraft("chat-reply", "");
     cancelReply();
     toast(tt("toast.sent"), "success");
-    const msgs = await api(withAccountId(`/api/messages/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}?limit=100`));
+    const msgs = await api(withAccountId(`/api/messages/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}?limit=100`));
     renderThreadMessages(msgs);
   } catch (e) { toast(e.message, "error"); }
 }
@@ -2362,7 +2374,7 @@ async function sendChatMedia(file) {
   if (!file || !activeThreadChat) return;
   const caption = document.getElementById("chat-reply")?.value.trim() || "";
   const params = new URLSearchParams({
-    platform: currentPlatform,
+    platform: threadPlatform(),
     account_id: String(getAccountId()),
     chat_id: activeThreadChat.id,
     caption,
@@ -2377,7 +2389,7 @@ async function sendChatMedia(file) {
     if (!res.ok) throw new Error(data.detail || tt("error.mediaSend"));
     document.getElementById("chat-reply").value = "";
     toastT("toast.mediaSent", "success");
-    const msgs = await api(withAccountId(`/api/messages/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}?limit=100`));
+    const msgs = await api(withAccountId(`/api/messages/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}?limit=100`));
     renderThreadMessages(msgs);
   } catch (e) { toast(e.message, "error"); }
 }
@@ -2419,7 +2431,7 @@ async function sendComposeMedia(file, sendNow = true) {
   if (!file || !selectedChat) return false;
   const caption = document.getElementById("message-text")?.value.trim() || "";
   const params = new URLSearchParams({
-    platform: currentPlatform,
+    platform: threadPlatform(),
     account_id: String(getAccountId()),
     chat_id: selectedChat.id,
     caption,
@@ -2843,8 +2855,13 @@ function toggleUnifiedInbox() {
 
 async function markAllChatsRead() {
   try {
-    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/mark-all-read`), { method: "POST" });
-    toastT("toast.markAllRead", "success", { count: r.cleared || 0 });
+    const platforms = unifiedInboxMode ? ["telegram", "whatsapp"] : [currentPlatform];
+    let cleared = 0;
+    for (const plat of platforms) {
+      const r = await api(withAccountId(`/api/conversations/${plat}/mark-all-read`, plat), { method: "POST" });
+      cleared += r.cleared || 0;
+    }
+    toastT("toast.markAllRead", "success", { count: cleared });
     chatListCache = [];
     await loadChatThread(true);
   } catch (e) { toast(e.message, "error"); }
@@ -2854,7 +2871,7 @@ async function togglePinChat() {
   if (!activeThreadChat) return;
   const next = !activeThreadChat.is_pinned;
   try {
-    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+    const r = await api(withAccountId(`/api/conversations/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
       method: "PATCH",
       body: JSON.stringify({ is_pinned: next }),
     });
@@ -2870,7 +2887,7 @@ async function toggleMuteChat() {
   if (!activeThreadChat) return;
   const next = !activeThreadChat.is_muted;
   try {
-    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+    const r = await api(withAccountId(`/api/conversations/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
       method: "PATCH",
       body: JSON.stringify({ is_muted: next }),
     });
@@ -2884,7 +2901,7 @@ async function toggleMuteChat() {
 async function snoozeChat() {
   if (!activeThreadChat) return;
   try {
-    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+    const r = await api(withAccountId(`/api/conversations/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
       method: "PATCH",
       body: JSON.stringify({ snooze_hours: 8 }),
     });
@@ -2903,7 +2920,7 @@ async function createFollowUpForChat() {
     await api("/api/follow-ups", {
       method: "POST",
       body: JSON.stringify({
-        platform: currentPlatform,
+        platform: threadPlatform(),
         chat_id: activeThreadChat.id,
         chat_name: activeThreadChat.name || activeThreadChat.id,
         reminder_text,
@@ -2919,7 +2936,7 @@ async function toggleMessageStar(messageId, starred) {
   if (!activeThreadChat) return;
   const star = starred === true || starred === "true";
   try {
-    await api(withAccountId(`/api/messages/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/${encodeURIComponent(messageId)}/star`), {
+    await api(withAccountId(`/api/messages/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}/${encodeURIComponent(messageId)}/star`), {
       method: "PATCH",
       body: JSON.stringify({ starred: star }),
     });
@@ -2957,7 +2974,7 @@ async function saveChatNotes() {
   const notes = document.getElementById("notes-chat-input")?.value || "";
   const tags = (document.getElementById("notes-tags-input")?.value || "").split(",").map((t) => t.trim()).filter(Boolean);
   try {
-    const r = await api(withAccountId(`/api/conversations/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
+    const r = await api(withAccountId(`/api/conversations/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}/meta`), {
       method: "PATCH",
       body: JSON.stringify({ notes, tags }),
     });
@@ -3246,7 +3263,7 @@ async function exportActiveChat(format) {
     return;
   }
   const path = withAccountId(
-    `/api/messages/export/${currentPlatform}/${encodeURIComponent(activeThreadChat.id)}?format=${format}`,
+    `/api/messages/export/${threadPlatform()}/${encodeURIComponent(activeThreadChat.id)}?format=${format}`,
   );
   try {
     const res = await fetch(path, { credentials: "same-origin" });

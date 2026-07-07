@@ -43,6 +43,14 @@ async def _migrate_chat_unique_constraints(conn) -> None:
                     from_me BOOLEAN NOT NULL,
                     sender_name VARCHAR(255),
                     text TEXT NOT NULL,
+                    message_type TEXT DEFAULT 'text',
+                    media_path TEXT,
+                    media_mime TEXT,
+                    media_filename TEXT,
+                    media_size INTEGER,
+                    caption TEXT,
+                    reply_to_message_id TEXT,
+                    is_starred INTEGER DEFAULT 0,
                     timestamp DATETIME NOT NULL,
                     created_at DATETIME NOT NULL,
                     CONSTRAINT uq_msg_account_chat_mid UNIQUE (account_id, chat_id, message_id)
@@ -50,8 +58,13 @@ async def _migrate_chat_unique_constraints(conn) -> None:
             """))
             await conn.execute(text("""
                 INSERT INTO chat_messages_new
-                    (id, account_id, platform, chat_id, message_id, from_me, sender_name, text, timestamp, created_at)
-                SELECT id, account_id, platform, chat_id, message_id, from_me, sender_name, text, timestamp, created_at
+                    (id, account_id, platform, chat_id, message_id, from_me, sender_name, text,
+                     message_type, media_path, media_mime, media_filename, media_size, caption,
+                     reply_to_message_id, is_starred, timestamp, created_at)
+                SELECT id, account_id, platform, chat_id, message_id, from_me, sender_name, text,
+                       COALESCE(message_type, 'text'), media_path, media_mime, media_filename,
+                       media_size, caption, reply_to_message_id, COALESCE(is_starred, 0),
+                       timestamp, created_at
                 FROM chat_messages
             """))
         else:
@@ -67,14 +80,25 @@ async def _migrate_chat_unique_constraints(conn) -> None:
                     last_message TEXT,
                     last_message_at DATETIME,
                     unread_count INTEGER NOT NULL,
+                    is_pinned INTEGER DEFAULT 0,
+                    pinned_at DATETIME,
+                    notes TEXT,
+                    tags_json TEXT DEFAULT '[]',
+                    is_muted INTEGER DEFAULT 0,
+                    snoozed_until DATETIME,
                     updated_at DATETIME NOT NULL,
                     CONSTRAINT uq_conv_account_chat UNIQUE (account_id, chat_id)
                 )
             """))
             await conn.execute(text("""
                 INSERT INTO conversations_new
-                    (id, account_id, platform, chat_id, chat_name, chat_name_custom, chat_type, last_message, last_message_at, unread_count, updated_at)
-                SELECT id, account_id, platform, chat_id, chat_name, 0, chat_type, last_message, last_message_at, unread_count, updated_at
+                    (id, account_id, platform, chat_id, chat_name, chat_name_custom, chat_type,
+                     last_message, last_message_at, unread_count, is_pinned, pinned_at, notes,
+                     tags_json, is_muted, snoozed_until, updated_at)
+                SELECT id, account_id, platform, chat_id, chat_name,
+                       COALESCE(chat_name_custom, 0), chat_type, last_message, last_message_at,
+                       unread_count, COALESCE(is_pinned, 0), pinned_at, notes,
+                       COALESCE(tags_json, '[]'), COALESCE(is_muted, 0), snoozed_until, updated_at
                 FROM conversations
             """))
 

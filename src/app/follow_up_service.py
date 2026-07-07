@@ -21,9 +21,12 @@ async def create_follow_up(
     wait_hours: int = 24,
     account_id: Optional[int] = None,
     chat_name: str = "",
+    due_at: Optional[datetime] = None,
+    anchor_at: Optional[datetime] = None,
 ) -> dict[str, Any]:
     now = datetime.utcnow()
-    due = now + timedelta(hours=max(1, wait_hours))
+    anchor = anchor_at or now
+    due = due_at or (now + timedelta(hours=max(1, wait_hours)))
     row = FollowUpReminder(
         platform=platform,
         account_id=account_id,
@@ -33,7 +36,7 @@ async def create_follow_up(
         reminder_text=reminder_text.strip(),
         status="pending",
         due_at=due,
-        anchor_at=now,
+        anchor_at=anchor,
     )
     async with async_session() as session:
         session.add(row)

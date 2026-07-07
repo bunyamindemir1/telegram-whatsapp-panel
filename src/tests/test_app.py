@@ -176,15 +176,19 @@ class TestSchedulerExecution:
 class TestAPI:
     @pytest_asyncio.fixture
     async def client(self, test_engine):
+        import app.account_service as acs
+        import app.activity_log as al
+        import app.auto_reply_service as ars
         import app.credentials_store as cred_module
         import app.database as db_module
+        import app.follow_up_service as fus
         import app.main as main_module
+        import app.message_store as ms
 
         factory = _make_session_factory(test_engine)
         db_module.engine = test_engine
-        db_module.async_session = factory
-        main_module.async_session = factory
-        cred_module.async_session = factory
+        for mod in (db_module, main_module, cred_module, ms, acs, ars, fus, al):
+            mod.async_session = factory
 
         async with factory() as session:
             from app.credentials_store import save_telegram_credentials

@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.account_service import get_default_account_id, resolve_account_id
+from app import error_codes as E
 from app.database import async_session
 from app.models import ChatMessage, Conversation
 
@@ -135,6 +136,15 @@ async def save_message(
 ) -> dict[str, Any]:
     aid = await resolve_account_id(platform, account_id)
     async with async_session() as session:
+        existing_msg = await session.scalar(
+            select(ChatMessage.id).where(
+                ChatMessage.account_id == aid,
+                ChatMessage.chat_id == chat_id,
+                ChatMessage.message_id == str(message_id),
+            )
+        )
+        is_new_message = existing_msg is None
+
         values = {
             "account_id": aid,
             "platform": platform,
@@ -204,7 +214,9 @@ async def save_message(
                 "last_message": text[:500] if text else None,
                 "last_message_at": timestamp,
                 "updated_at": datetime.utcnow(),
-                "unread_count": Conversation.unread_count + (0 if from_me else 1),
+                "unread_count": Conversation.unread_count + (
+                    1 if (is_new_message and not from_me) else 0
+                ),
             },
         )
         await session.execute(conv_stmt)
@@ -452,7 +464,11 @@ async def get_messages(
     async with async_session() as session:
         query = (
             select(ChatMessage)
-            .where(ChatMessage.account_id == aid, ChatMessage.chat_id == chat_id)
+            .where(
+                ChatMessage.account_id == aid,
+                ChatMessage.platform == platform,
+                ChatMessage.chat_id == chat_id,
+            )
             .order_by(ChatMessage.timestamp.desc())
             .limit(limit)
         )
@@ -568,7 +584,7 @@ async def update_conversation_label(
     aid = await resolve_account_id(platform, account_id)
     clean = (label or "").strip()
     if not clean:
-        raise ValueError("İsim boş olamaz")
+        raise ValueError(E.LABEL_REQUIRED)
     async with async_session() as session:
         conv = await session.scalar(
             select(Conversation).where(

@@ -531,5 +531,8 @@
   "error.locale.notSupported": "Locale not supported",
   "error.csv.headerRequired": "CSV file must include a header row",
   "error.bridge.eventDataRequired": "Message event requires payload data",
-  "error.notFound": "Not found"
+  "error.notFound": "Not found",
+  "error.autoReply.notFound": "Auto-reply rule not found",
+  "error.followUp.notFound": "Follow-up reminder not found",
+  "error.conversation.labelRequired": "Label cannot be empty"
 }

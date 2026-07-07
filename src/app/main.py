@@ -747,6 +747,9 @@ async def api_mark_all_read(
     aid = await _resolve_platform_account(platform, account_id)
     cleared = await mark_all_read(platform, account_id=aid)
     return {"ok": True, "cleared": cleared}
+
+
+@app.get("/api/messages/{platform}/{chat_id}")
 async def api_get_messages(
     request: Request,
     platform: str,
@@ -756,6 +759,7 @@ async def api_get_messages(
     account_id: Optional[int] = Query(None),
 ):
     await _check_panel_auth(request)
+    _validate_platform(platform)
     if platform == Platform.WHATSAPP.value and not before_id:
         aid = await _resolve_whatsapp_account(account_id)
         try:
@@ -1763,7 +1767,7 @@ async def api_update_auto_reply(request: Request, rule_id: int, body: AutoReplyU
         cooldown_minutes=body.cooldown_minutes,
         is_active=body.is_active,
     ):
-        raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+        raise HTTPException(status_code=404, detail=E.AUTO_REPLY_NOT_FOUND)
     return {"ok": True}
 
 
@@ -1772,7 +1776,7 @@ async def api_delete_auto_reply(request: Request, rule_id: int):
     await _check_panel_auth(request)
     from app.auto_reply_service import delete_auto_reply_rule
     if not await delete_auto_reply_rule(rule_id):
-        raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+        raise HTTPException(status_code=404, detail=E.AUTO_REPLY_NOT_FOUND)
     return {"ok": True}
 
 
@@ -1813,7 +1817,7 @@ async def api_cancel_follow_up(request: Request, follow_up_id: int):
     await _check_panel_auth(request)
     from app.follow_up_service import cancel_follow_up
     if not await cancel_follow_up(follow_up_id):
-        raise HTTPException(status_code=404, detail=E.MESSAGE_NOT_FOUND)
+        raise HTTPException(status_code=404, detail=E.FOLLOW_UP_NOT_FOUND)
     return {"ok": True}
 
 

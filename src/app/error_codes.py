@@ -32,6 +32,9 @@ SCHEDULE_RANDOM_WINDOW = "error.schedule.randomWindowRequired"
 SCHEDULE_CUSTOM_INTERVAL = "error.schedule.customIntervalRequired"
 MESSAGE_NOT_FOUND = "error.message.notFound"
 MESSAGE_NOT_EDITABLE = "error.message.notEditable"
+AUTO_REPLY_NOT_FOUND = "error.autoReply.notFound"
+FOLLOW_UP_NOT_FOUND = "error.followUp.notFound"
+LABEL_REQUIRED = "error.conversation.labelRequired"
 
 # Media & API v1
 MEDIA_TOO_LARGE = "error.media.tooLarge"

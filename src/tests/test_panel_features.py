@@ -287,6 +287,55 @@ async def test_stats_extended(panel_client):
 
 
 @pytest.mark.asyncio
+async def test_get_messages_route(panel_client):
+    from app.message_store import save_message
+
+    await save_message(
+        "telegram", "999", "m-get", "hello thread", False, datetime.utcnow(),
+        chat_name="Test", account_id=1,
+    )
+    res = await panel_client.get("/api/messages/telegram/999?account_id=1")
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) >= 1
+    assert any(m.get("text") == "hello thread" for m in data)
+
+
+@pytest.mark.asyncio
+async def test_unread_not_inflated_on_resync(panel_client):
+    from app.message_store import save_message
+
+    ts = datetime.utcnow()
+    await save_message("telegram", "888", "m-resync", "once", False, ts, account_id=1)
+    listed = await panel_client.get("/api/conversations?platform=telegram&account_id=1")
+    conv = next((c for c in listed.json() if str(c.get("id")) == "888"), None)
+    assert conv is not None
+    unread_after_first = conv.get("unread_count", 0)
+
+    await save_message("telegram", "888", "m-resync", "once", False, ts, account_id=1)
+    listed2 = await panel_client.get("/api/conversations?platform=telegram&account_id=1")
+    conv2 = next((c for c in listed2.json() if str(c.get("id")) == "888"), None)
+    assert conv2.get("unread_count", 0) == unread_after_first
+
+
+@pytest.mark.asyncio
+async def test_auto_reply_not_found_error_code(panel_client):
+    res = await panel_client.delete("/api/auto-replies/999999")
+    assert res.status_code == 404
+    assert res.json()["detail"] == "error.autoReply.notFound"
+
+
+@pytest.mark.asyncio
+async def test_empty_label_returns_i18n_key(panel_client):
+    res = await panel_client.patch(
+        "/api/conversations/telegram/123/label?account_id=1",
+        json={"label": "   "},
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"] == "error.conversation.labelRequired"
+
+
+@pytest.mark.asyncio
 async def test_send_with_reply_to(panel_client):
     with patch("app.main.send_platform_message", new_callable=AsyncMock) as mock_send:
         mock_send.return_value = {"message_id": "42"}

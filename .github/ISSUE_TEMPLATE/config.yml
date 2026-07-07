@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Kurulum rehberi
-    url: https://github.com/bunyamindemir1/telegram-whatsapp-panel/blob/main/docs/QUICKSTART.md
+    url: https://github.com/bunyamindemir1/telegram-whatsapp-panel/blob/main/src/docs/QUICKSTART.md
     about: 1 dakikada Docker kurulumu
   - name: SSS
-    url: https://github.com/bunyamindemir1/telegram-whatsapp-panel/blob/main/docs/FAQ.md
+    url: https://github.com/bunyamindemir1/telegram-whatsapp-panel/blob/main/src/docs/FAQ.md
     about: Sık sorulan sorular
