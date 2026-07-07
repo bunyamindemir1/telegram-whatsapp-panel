@@ -19,7 +19,40 @@ const DATA_ROOT = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const PORT = parseInt(process.env.WHATSAPP_BRIDGE_PORT || "3001", 10);
 const HOST = process.env.BRIDGE_HOST || "127.0.0.1";
 const PANEL_URL = process.env.PANEL_URL || "http://127.0.0.1:8000";
-const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "mesaj-bridge-local-secret";
+
+function loadBridgeSecret() {
+  const fromEnv = (process.env.BRIDGE_SECRET || "").trim();
+  if (fromEnv) return fromEnv;
+
+  const secretFile = path.join(DATA_ROOT, ".bridge_secret");
+  try {
+    if (fs.existsSync(secretFile)) {
+      const value = fs.readFileSync(secretFile, "utf8").trim();
+      if (value) return value;
+    }
+  } catch (err) {
+    console.warn("Could not read bridge secret file:", err.message);
+  }
+
+  const env = String(process.env.ENV || "development").toLowerCase();
+  if (env === "production") {
+    console.error("Production: set BRIDGE_SECRET in .env or provide data/.bridge_secret");
+    process.exit(1);
+  }
+
+  try {
+    fs.mkdirSync(DATA_ROOT, { recursive: true });
+    const generated = crypto.randomBytes(32).toString("base64url");
+    fs.writeFileSync(secretFile, generated, { mode: 0o600 });
+    console.warn("[dev] Generated BRIDGE_SECRET in data/.bridge_secret — run make setup for production");
+    return generated;
+  } catch (err) {
+    console.error("Failed to generate bridge secret:", err.message);
+    process.exit(1);
+  }
+}
+
+const BRIDGE_SECRET = loadBridgeSecret();
 const OUTBOUND_ALLOWED = ["1", "true", "yes"].includes(
   String(process.env.ALLOW_OUTBOUND_MESSAGES || "false").toLowerCase()
 );

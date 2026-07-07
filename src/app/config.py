@@ -1,6 +1,7 @@
 import os
 import secrets
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -29,7 +30,24 @@ TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 TELEGRAM_PHONE = os.getenv("TELEGRAM_PHONE", "")
 TELEGRAM_TEST_PHONE = os.getenv("TELEGRAM_TEST_PHONE", "")
 
+# Documented weak default — listed in secret_policy only; never used at runtime.
 DEFAULT_BRIDGE_SECRET = "mesaj-bridge-local-secret"
+
+
+def load_persistent_secret(env_name: str, filename: str, *, data_dir: Optional[Path] = None) -> str:
+    """Load secret from env, persisted file, or generate a strong random value."""
+    data_dir = data_dir or DATA_DIR
+    env_val = os.getenv(env_name, "").strip()
+    if env_val:
+        return env_val
+    secret_file = data_dir / filename
+    if secret_file.exists():
+        return secret_file.read_text().strip()
+    generated = secrets.token_urlsafe(32)
+    secret_file.write_text(generated)
+    secret_file.chmod(0o600)
+    return generated
+
 
 PANEL_PASSWORD = os.getenv("PANEL_PASSWORD", "")
 PANEL_ADMIN_USER = os.getenv("PANEL_ADMIN_USER", "admin")
@@ -40,17 +58,8 @@ REQUIRE_PANEL_AUTH = os.getenv("REQUIRE_PANEL_AUTH", "true" if ENV == "productio
     "yes",
 )
 
-SESSION_SECRET = os.getenv("SESSION_SECRET", "")
-if not SESSION_SECRET:
-    _secret_file = DATA_DIR / ".session_secret"
-    if _secret_file.exists():
-        SESSION_SECRET = _secret_file.read_text().strip()
-    else:
-        SESSION_SECRET = secrets.token_urlsafe(32)
-        _secret_file.write_text(SESSION_SECRET)
-        _secret_file.chmod(0o600)
-
-BRIDGE_SECRET = os.getenv("BRIDGE_SECRET", DEFAULT_BRIDGE_SECRET)
+SESSION_SECRET = load_persistent_secret("SESSION_SECRET", ".session_secret")
+BRIDGE_SECRET = load_persistent_secret("BRIDGE_SECRET", ".bridge_secret")
 PANEL_URL = os.getenv("PANEL_URL", f"http://127.0.0.1:{PORT}")
 WHATSAPP_BRIDGE_URL = os.getenv("WHATSAPP_BRIDGE_URL", "http://127.0.0.1:3001")
 WHATSAPP_BRIDGE_PORT = int(os.getenv("WHATSAPP_BRIDGE_PORT", "3001"))

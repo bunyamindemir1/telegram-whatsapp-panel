@@ -43,9 +43,40 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
           exit 1
         fi
       fi
+      if grep -qE 'BRIDGE_SECRET=[^[:space:]]+' "$file" 2>/dev/null; then
+        if ! grep -qE '(CHANGE_ME|degistirin-)' "$file" 2>/dev/null; then
+          red "Possible BRIDGE_SECRET in staged file: $file"
+          exit 1
+        fi
+      fi
+      if grep -qE 'TELEGRAM_API_HASH=[0-9a-fA-F]{32}' "$file" 2>/dev/null; then
+        red "Possible Telegram API hash in staged file: $file"
+        exit 1
+      fi
+      if grep -qE '(ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})' "$file" 2>/dev/null; then
+        red "Possible token/API key in staged file: $file"
+        exit 1
+      fi
     done <<< "$STAGED"
     green "Staged secret scan OK"
   fi
+
+  echo "→ Scanning tracked source for embedded weak bridge default..."
+  ALLOW_WEAK_LITERAL='src/app/config.py|src/app/secret_policy.py|src/tests/test_secret_policy.py|src/whatsapp-bridge/server.js'
+  while IFS= read -r file; do
+    [[ -f "$file" ]] || continue
+    case "$file" in
+      src/whatsapp-bridge/node_modules/*) continue ;;
+    esac
+    if echo "$file" | grep -qE "$ALLOW_WEAK_LITERAL"; then
+      continue
+    fi
+    if grep -q 'mesaj-bridge-local-secret' "$file" 2>/dev/null; then
+      red "Hardcoded weak bridge secret in tracked file: $file"
+      exit 1
+    fi
+  done < <(git ls-files 'src/**' '.github/**' '*.md' 2>/dev/null || true)
+  green "Tracked weak-secret scan OK"
 else
   echo "  (not a git repo yet — skip tracked check)"
 fi

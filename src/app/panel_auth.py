@@ -199,5 +199,8 @@ def validate_production_settings() -> None:
         if is_weak_admin_password(PANEL_ADMIN_PASSWORD):
             raise RuntimeError("Production: PANEL_ADMIN_PASSWORD örnek/varsayılan değer olamaz")
         validate_password_strength(PANEL_ADMIN_PASSWORD)
-    if PANEL_PASSWORD and len(PANEL_PASSWORD) < 8:
-        raise RuntimeError("Production: PANEL_PASSWORD en az 8 karakter olmalı")
+    if PANEL_PASSWORD:
+        if len(PANEL_PASSWORD) < 8:
+            raise RuntimeError("Production: PANEL_PASSWORD en az 8 karakter olmalı")
+        if is_weak_admin_password(PANEL_PASSWORD):
+            raise RuntimeError("Production: PANEL_PASSWORD örnek/varsayılan değer olamaz")

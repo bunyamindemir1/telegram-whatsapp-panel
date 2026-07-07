@@ -1,5 +1,12 @@
 """Shared pytest fixtures for the test suite."""
 
+import os
+
+# Fixed test secrets — must be set before app.config is imported.
+os.environ.setdefault("SESSION_SECRET", "test-session-secret-fixed-32-chars!!")
+os.environ.setdefault("BRIDGE_SECRET", "test-bridge-secret-fixed-32-chars!!")
+os.environ.setdefault("ENV", "development")
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
